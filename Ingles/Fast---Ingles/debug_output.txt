@@ -1,0 +1,6 @@
+--- INTERNAL MINIO DEBUG ---
+Endpoint: files.n8nprueba.shop
+Bucket: fastingles
+AccessKey Len: 0
+SecretKey Len: 0
+❌ ERROR: Missing credentials in environment!
