@@ -32,6 +32,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, 
     const [isSaving, setIsSaving] = useState(false);
     const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
 
+    // Audio Generation Progress States
+    const [audioProgress, setAudioProgress] = useState(0);
+    const [currentProcessingWord, setCurrentProcessingWord] = useState('');
+
     const categories: { id: CategoryType, label: string, icon: string }[] = [
         { id: 'verbs', label: 'Verbos', icon: '⚡' },
         { id: 'adjectives', label: 'Adjetivos', icon: '🎨' },
@@ -102,6 +106,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, 
         if (!selectedLevelId || !generatedContent || generatedContent.length === 0) return;
 
         setIsSaving(true);
+        setAudioProgress(0);
         setSaveMessage({ type: 'info', text: 'Guardando lección en BD...' });
 
         try {
@@ -109,10 +114,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, 
             const topic = stage?.title || `Level ${selectedLevelId}`;
             const category = categories.find(c => c.id === selectedCategory)?.id || 'verbs';
 
-            // Call Backend Save Endpoint
-            await apiService.saveLesson(selectedLevelId, generatedContent, topic, category);
+            // 1. Save to Database (skip background audio)
+            await apiService.saveLesson(selectedLevelId, generatedContent, topic, category, true);
 
-            setSaveMessage({ type: 'success', text: '✅ ¡Lección guardada exitosamente! Los audios se generan en segundo plano.' });
+            // 2. Interactive Audio Generation
+            setSaveMessage({ type: 'info', text: 'Generando audios...' });
+            const total = generatedContent.length;
+            let completed = 0;
+            let failures: string[] = [];
+
+            for (const item of generatedContent) {
+                setCurrentProcessingWord(item.word);
+
+                try {
+                    await apiService.generateAudioSingle(item.word, category, selectedLevelId);
+                } catch (e) {
+                    console.warn(`Failed to generate audio for ${item.word}`, e);
+                    failures.push(item.word);
+                }
+
+                completed++;
+                setAudioProgress(Math.round((completed / total) * 100));
+            }
+
+            // 3. Final Status
+            setCurrentProcessingWord('');
+
+            if (failures.length === 0) {
+                setSaveMessage({ type: 'success', text: `✅ ¡Lección guardada! ${total} audios generados correctamente.` });
+            } else {
+                setSaveMessage({ type: 'error', text: `¡Lección guardada con ${failures.length} errores de audio!` });
+            }
 
             // Clear message after 5 seconds
             setTimeout(() => setSaveMessage(null), 5000);
@@ -126,6 +158,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, 
             setTimeout(() => setSaveMessage(null), 5000);
         } finally {
             setIsSaving(false);
+            setAudioProgress(0);
+            setCurrentProcessingWord('');
         }
     };
 
@@ -344,10 +378,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, 
                                     {/* INLINE STATUS MESSAGE */}
                                     {saveMessage && (
                                         <div className={`mb-6 p-4 rounded-lg font-bold text-center ${saveMessage.type === 'success' ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' :
-                                                saveMessage.type === 'error' ? 'bg-red-50 border border-red-200 text-red-700' :
-                                                    'bg-blue-50 border border-blue-200 text-blue-700'
+                                            saveMessage.type === 'error' ? 'bg-red-50 border border-red-200 text-red-700' :
+                                                'bg-blue-50 border border-blue-200 text-blue-700'
                                             }`}>
                                             {saveMessage.text}
+                                        </div>
+                                    )}
+
+                                    {/* AUDIO GENERATION PROGRESS BAR */}
+                                    {isSaving && audioProgress > 0 && (
+                                        <div className="mb-6 bg-slate-50 border border-slate-200 rounded-lg p-4">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-sm font-bold text-slate-700">
+                                                    Generando audios...
+                                                </span>
+                                                <span className="text-sm font-bold text-blue-600">
+                                                    {audioProgress}%
+                                                </span>
+                                            </div>
+                                            <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+                                                <div
+                                                    className="bg-blue-600 h-3 rounded-full transition-all duration-300"
+                                                    style={{ width: `${audioProgress}%` }}
+                                                ></div>
+                                            </div>
+                                            {currentProcessingWord && (
+                                                <p className="text-xs text-slate-500 mt-2 text-center">
+                                                    Procesando: <strong>{currentProcessingWord}</strong>
+                                                </p>
+                                            )}
                                         </div>
                                     )}
 
