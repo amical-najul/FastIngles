@@ -7,7 +7,10 @@ settings = get_settings()
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
-    future=True
+    future=True,
+    # Required for Supabase Transaction Pooler (pgbouncer/Supavisor)
+    # Transaction mode doesn't support prepared statements
+    connect_args={"prepared_statement_cache_size": 0}
 )
 
 async_session = async_sessionmaker(
