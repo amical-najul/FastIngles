@@ -7,7 +7,7 @@ import { Button } from '../ui/Button';
 export const AdminUsers: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
-    
+
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editMode, setEditMode] = useState(false);
@@ -22,13 +22,16 @@ export const AdminUsers: React.FC = () => {
         status: 'active' as UserStatus
     });
 
-    const loadUsers = () => {
+    const loadUsers = async () => {
         setLoading(true);
-        setTimeout(() => {
-            const data = authService.getAllUsers();
+        try {
+            const data = await authService.getAllUsers();
             setUsers(data);
+        } catch (error) {
+            console.error('Error loading users:', error);
+        } finally {
             setLoading(false);
-        }, 200);
+        }
     };
 
     useEffect(() => {
@@ -59,9 +62,9 @@ export const AdminUsers: React.FC = () => {
         setIsModalOpen(true);
     };
 
-    const handleDelete = (user: User) => {
+    const handleDelete = async (user: User) => {
         if (confirm(`¿Estás seguro de eliminar a ${user.name}? Esta acción no se puede deshacer.`)) {
-            authService.adminDeleteUser(user.id);
+            await authService.adminDeleteUser(user.id);
             loadUsers();
         }
     };
@@ -70,7 +73,7 @@ export const AdminUsers: React.FC = () => {
         e.preventDefault();
         try {
             if (editMode && selectedUser) {
-                authService.adminUpdateUser(selectedUser.id, {
+                await authService.adminUpdateUser(selectedUser.id, {
                     name: formData.name,
                     email: formData.email,
                     role: formData.role,
@@ -79,7 +82,7 @@ export const AdminUsers: React.FC = () => {
                 });
             } else {
                 if (!formData.password) throw new Error("La contraseña es requerida");
-                authService.adminCreateUser({
+                await authService.adminCreateUser({
                     name: formData.name,
                     email: formData.email,
                     password: formData.password,
@@ -127,7 +130,7 @@ export const AdminUsers: React.FC = () => {
                                                 <img src={user.photoUrl} alt={user.name} className="w-full h-full object-cover" />
                                             ) : (
                                                 <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold text-xs">
-                                                    {user.name.substring(0,2).toUpperCase()}
+                                                    {user.name.substring(0, 2).toUpperCase()}
                                                 </div>
                                             )}
                                         </div>
@@ -138,34 +141,32 @@ export const AdminUsers: React.FC = () => {
                                     </div>
                                 </td>
                                 <td className="px-6 py-4">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                                        user.role === 'admin' 
-                                            ? 'bg-purple-100 text-purple-700 border border-purple-200' 
+                                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${user.role === 'admin'
+                                            ? 'bg-purple-100 text-purple-700 border border-purple-200'
                                             : 'bg-slate-100 text-slate-600 border border-slate-200'
-                                    }`}>
+                                        }`}>
                                         {user.role === 'admin' ? 'Administrador' : 'Usuario'}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1 w-fit ${
-                                        user.status === 'inactive' 
-                                            ? 'bg-red-100 text-red-700 border border-red-200' 
+                                    <span className={`px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1 w-fit ${user.status === 'inactive'
+                                            ? 'bg-red-100 text-red-700 border border-red-200'
                                             : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                                    }`}>
+                                        }`}>
                                         <span className={`w-1.5 h-1.5 rounded-full ${user.status === 'inactive' ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
                                         {user.status === 'inactive' ? 'Inactivo' : 'Activo'}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 text-right">
                                     <div className="flex justify-end gap-2">
-                                        <button 
+                                        <button
                                             onClick={() => handleOpenEdit(user)}
                                             className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
                                             title="Editar / Mudar Rol"
                                         >
                                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                         </button>
-                                        <button 
+                                        <button
                                             onClick={() => handleDelete(user)}
                                             className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
                                             title="Eliminar"
@@ -195,43 +196,43 @@ export const AdminUsers: React.FC = () => {
                         <form onSubmit={handleSubmit} className="p-6 space-y-4">
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nombre Completo</label>
-                                <input 
+                                <input
                                     required
-                                    type="text" 
+                                    type="text"
                                     className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none bg-slate-50 text-slate-900 placeholder-slate-400"
                                     value={formData.name}
-                                    onChange={e => setFormData({...formData, name: e.target.value})}
+                                    onChange={e => setFormData({ ...formData, name: e.target.value })}
                                 />
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label>
-                                <input 
+                                <input
                                     required
-                                    type="email" 
+                                    type="email"
                                     className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none bg-slate-50 text-slate-900 placeholder-slate-400"
                                     value={formData.email}
-                                    onChange={e => setFormData({...formData, email: e.target.value})}
+                                    onChange={e => setFormData({ ...formData, email: e.target.value })}
                                 />
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
                                     {editMode ? 'Nueva Contraseña (Dejar en blanco para mantener)' : 'Contraseña'}
                                 </label>
-                                <input 
-                                    type="password" 
+                                <input
+                                    type="password"
                                     className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none bg-slate-50 text-slate-900 placeholder-slate-400"
                                     value={formData.password}
-                                    onChange={e => setFormData({...formData, password: e.target.value})}
+                                    onChange={e => setFormData({ ...formData, password: e.target.value })}
                                 />
                             </div>
-                            
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Rol</label>
-                                    <select 
+                                    <select
                                         className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none bg-slate-50 text-slate-900"
                                         value={formData.role}
-                                        onChange={e => setFormData({...formData, role: e.target.value as UserRole})}
+                                        onChange={e => setFormData({ ...formData, role: e.target.value as UserRole })}
                                     >
                                         <option value="user">Usuario</option>
                                         <option value="admin">Administrador</option>
@@ -240,10 +241,10 @@ export const AdminUsers: React.FC = () => {
                                 {editMode && (
                                     <div>
                                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Estado</label>
-                                        <select 
+                                        <select
                                             className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none bg-slate-50 text-slate-900"
                                             value={formData.status}
-                                            onChange={e => setFormData({...formData, status: e.target.value as UserStatus})}
+                                            onChange={e => setFormData({ ...formData, status: e.target.value as UserStatus })}
                                         >
                                             <option value="active">Activo</option>
                                             <option value="inactive">Inactivo</option>

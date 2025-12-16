@@ -7,6 +7,7 @@ from app.database import init_db
 from app.routers.auth import router as auth_router
 from app.routers.lessons import router as lessons_router
 from app.routers.tts import router as tts_router
+from app.routers.admin import router as admin_router
 
 settings = get_settings()
 
@@ -45,6 +46,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(lessons_router)
 app.include_router(tts_router)
+app.include_router(admin_router)
 
 
 @app.get("/")

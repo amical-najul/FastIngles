@@ -142,5 +142,76 @@ export const apiService = {
             // Fallback for UI to handle
             return `BROWSER_TTS::${text}::${lang}`;
         }
+    },
+
+    // ========== AUTH API METHODS ==========
+
+    /**
+     * Register a new user via backend API.
+     */
+    register: async (name: string, email: string, password: string) => {
+        const response = await api.post('/auth/register', { name, email, password });
+        return response.data;
+    },
+
+    /**
+     * Login and get JWT token.
+     */
+    login: async (email: string, password: string) => {
+        const response = await api.post('/auth/login', { email, password });
+        // Store token in localStorage for session
+        if (response.data.access_token) {
+            localStorage.setItem('token', response.data.access_token);
+        }
+        return response.data;
+    },
+
+    /**
+     * Get current user info from token.
+     */
+    getMe: async () => {
+        const response = await api.get('/auth/me');
+        return response.data;
+    },
+
+    /**
+     * Logout - remove token from localStorage.
+     */
+    logout: () => {
+        localStorage.removeItem('token');
+    },
+
+    // ========== ADMIN USER MANAGEMENT API ==========
+
+    /**
+     * Get all users (admin only).
+     */
+    adminGetAllUsers: async () => {
+        const response = await api.get('/admin/users');
+        return response.data;
+    },
+
+    /**
+     * Create a new user (admin only).
+     */
+    adminCreateUser: async (userData: { name: string; email: string; password: string; role: string }) => {
+        const response = await api.post('/admin/users', userData);
+        return response.data;
+    },
+
+    /**
+     * Update a user (admin only).
+     */
+    adminUpdateUser: async (userId: number, updates: { name?: string; email?: string; password?: string; role?: string; status?: string }) => {
+        const response = await api.put(`/admin/users/${userId}`, updates);
+        return response.data;
+    },
+
+    /**
+     * Delete a user (admin only).
+     */
+    adminDeleteUser: async (userId: number) => {
+        await api.delete(`/admin/users/${userId}`);
+        return true;
     }
 };

@@ -9,14 +9,18 @@ export const AdminStats: React.FC = () => {
     const [contentStats, setContentStats] = useState<any>(null);
 
     useEffect(() => {
-        setUsers(authService.getAllUsers());
-        setContentStats(storageService.getAdminGlobalStats());
+        const loadStats = async () => {
+            const usersData = await authService.getAllUsers();
+            setUsers(usersData);
+            setContentStats(storageService.getAdminGlobalStats());
+        };
+        loadStats();
     }, []);
 
     const totalUsers = users.length;
     const activeUsers = users.filter(u => u.status === 'active').length;
     const admins = users.filter(u => u.role === 'admin').length;
-    
+
     // Calculate storage usage in KB
     const storageKB = contentStats ? (contentStats.storageUsage / 1024).toFixed(2) : "0";
 
@@ -36,27 +40,27 @@ export const AdminStats: React.FC = () => {
             </header>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-                <StatCard 
-                    title="Usuarios Totales" 
-                    value={totalUsers} 
-                    sub={`${activeUsers} Activos / ${totalUsers - activeUsers} Inactivos`} 
+                <StatCard
+                    title="Usuarios Totales"
+                    value={totalUsers}
+                    sub={`${activeUsers} Activos / ${totalUsers - activeUsers} Inactivos`}
                     color="text-slate-800"
                 />
-                <StatCard 
-                    title="Administradores" 
-                    value={admins} 
+                <StatCard
+                    title="Administradores"
+                    value={admins}
                     sub="Acceso total al sistema"
                     color="text-purple-600"
                 />
-                <StatCard 
-                    title="Contenido Generado" 
-                    value={contentStats?.generatedStages || 0} 
+                <StatCard
+                    title="Contenido Generado"
+                    value={contentStats?.generatedStages || 0}
                     sub={`de ${contentStats?.totalAvailableStages || 0} niveles posibles`}
                     color="text-emerald-600"
                 />
-                <StatCard 
-                    title="Palabras en BD" 
-                    value={contentStats?.totalWordsGenerated || 0} 
+                <StatCard
+                    title="Palabras en BD"
+                    value={contentStats?.totalWordsGenerated || 0}
                     sub={`Uso local: ${storageKB} KB`}
                     color="text-blue-600"
                 />
@@ -75,7 +79,7 @@ export const AdminStats: React.FC = () => {
                             <span className="font-bold">{activeUsers}</span>
                         </div>
                         <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                            <div className="bg-emerald-500 h-full" style={{ width: `${(activeUsers/totalUsers)*100}%` }}></div>
+                            <div className="bg-emerald-500 h-full" style={{ width: `${(activeUsers / totalUsers) * 100}%` }}></div>
                         </div>
 
                         <div className="flex items-center justify-between text-sm pt-2">
@@ -86,7 +90,7 @@ export const AdminStats: React.FC = () => {
                             <span className="font-bold">{totalUsers - activeUsers}</span>
                         </div>
                         <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                            <div className="bg-slate-400 h-full" style={{ width: `${((totalUsers - activeUsers)/totalUsers)*100}%` }}></div>
+                            <div className="bg-slate-400 h-full" style={{ width: `${((totalUsers - activeUsers) / totalUsers) * 100}%` }}></div>
                         </div>
                     </div>
                 </div>
