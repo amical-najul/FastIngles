@@ -50,6 +50,7 @@ services:
       - "traefik.http.routers.ingles-api.rule=Host(`ingles.n8nprueba.shop`) && PathPrefix(`/api`, `/docs`, `/redoc`, `/openapi.json`)"
       - "traefik.http.routers.ingles-api.entrypoints=websecure"
       - "traefik.http.routers.ingles-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.ingles-api.priority=100"
       - "traefik.http.services.ingles-api.loadbalancer.server.port=8000"
 
       # CORS Headers
@@ -76,6 +77,7 @@ services:
       - "traefik.http.routers.ingles-web.rule=Host(`ingles.n8nprueba.shop`)"
       - "traefik.http.routers.ingles-web.entrypoints=websecure"
       - "traefik.http.routers.ingles-web.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.ingles-web.priority=1"
       - "traefik.http.services.ingles-web.loadbalancer.server.port=80"
 
 networks:
