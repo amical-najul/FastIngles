@@ -15,9 +15,12 @@ services:
       - APP_NAME=Fast-Ingles VPS
       - DEBUG=false
 
-      # --- Database (Supabase) ---
-      # Definir valor real en Portainer UI
+      # --- Database (Legacy - Supabase pooler) ---
       - DATABASE_URL=${DATABASE_URL}
+
+      # --- Supabase REST API (REQUIRED) ---
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
 
       # --- Security ---
       - SECRET_KEY=${SECRET_KEY}
@@ -32,12 +35,11 @@ services:
       - MINIO_ENDPOINT=files.n8nprueba.shop
       - MINIO_BUCKET=fastingles
       - MINIO_SECURE=true
-      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
-      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
 
       # --- CORS ---
-      # Permitir el propio dominio del frontend
-      - CORS_ORIGINS=["https://ingles.n8nprueba.shop"]
+      - CORS_ORIGINS=${CORS_ORIGINS:-["https://ingles.n8nprueba.shop"]}
 
     networks:
       - default

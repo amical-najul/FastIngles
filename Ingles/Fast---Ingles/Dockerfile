@@ -30,8 +30,8 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Expose port
 EXPOSE 80
 
-# Health check (using curl instead of wget - wget not available in nginx:alpine)
+# Health check (using wget - available in nginx:alpine)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:80/health || exit 1
+    CMD wget -q --spider http://localhost:80/health || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]
