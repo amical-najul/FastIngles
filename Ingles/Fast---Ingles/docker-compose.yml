@@ -5,71 +5,32 @@ version: '3.8'
 # Networks: Database, Storage, Public
 
 services:
-  # 1. PostgreSQL Database
-  # Service: postgres_db (lowercase for valid image naming)
-  # Container: postgres-FastIngles
-  postgres_db:
-    image: postgres:16-alpine
-    container_name: postgres-FastIngles
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: fastingles
-    volumes:
-      - vol-postgres-data:/var/lib/postgresql/data
-      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - net-database
+  # 1. PostgreSQL Database (DISABLED - Using Supabase)
+  # postgres_db:
+  #   image: postgres:16-alpine
+  #   container_name: postgres-FastIngles
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+  #     POSTGRES_DB: fastingles
+  #   volumes:
+  #     - vol-postgres-data:/var/lib/postgresql/data
+  #     - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+  #   ports:
+  #     - "5432:5432"
+  #   healthcheck:
+  #     test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - net-database
 
   # 2. MinIO Object Storage
   # Service: minio_server
   # Container: minio-FastIngles
-  # Image: RELEASE.2025-04-22T22-12-26Z
-  # 2. MinIO Object Storage (DISABLED - Using External VPS)
-  # minio_server:
-  #   image: minio/minio:RELEASE.2025-04-22T22-12-26Z
-  #   container_name: minio-FastIngles
-  #   restart: unless-stopped
-  #   command: server /data --console-address ":9001"
-  #   environment:
-  #     MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-  #     MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
-  #   volumes:
-  #     - vol-minio-data:/data
-  #   ports:
-  #     - "9000:9000" # S3 API
-  #     - "9001:9001" # Web Console
-  #   healthcheck:
-  #     test: [ "CMD", "mc", "ready", "local" ]
-  #     interval: 30s
-  #     timeout: 20s
-  #     retries: 3
-  #   networks:
-  #     - net-storage
-  #     - net-public
-
-  # 3. MinIO Client
-  # Service: minio_client
-  # Container: minio-cliente-FastIngles
-  # 3. MinIO Client (DISABLED)
-  # minio_client:
-  #   image: minio/mc:latest
-  #   container_name: minio-cliente-FastIngles
-  #   depends_on:
-  #     minio_server:
-  #       condition: service_healthy
-  #   entrypoint: >
-  #     /bin/sh -c " sleep 5; mc alias set myminio http://minio-FastIngles:9000 $${MINIO_ROOT_USER:-minioadmin} $${MINIO_ROOT_PASSWORD:-minioadmin123}; mc mb myminio/fastingles-storage --ignore-existing; mc anonymous set download myminio/fastingles-storage/audio; mc anonymous set download myminio/fastingles-storage/images; echo 'MinIO bucket initialized successfully'; exit 0; "
-  #   networks:
-  #     - net-storage
+  # ... (Keep existing comments or layout if needed)
 
   # 4. Backend API
   # Service: backend_api
@@ -84,18 +45,13 @@ services:
       - ./backend/.env
     environment:
       # Using container names as hostnames for clarity and stability across networks
-      DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres-FastIngles:5432/fastingles
+      # DATABASE_URL: Managed in .env now (Supabase)
       # MinIO External (Values loaded from env_file)
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-files.n8nprueba.shop}
       MINIO_BUCKET: ${MINIO_BUCKET:-fastingles}
       MINIO_SECURE: "true"
     ports:
       - "8000:8000"
-    depends_on:
-      postgres_db:
-        condition: service_healthy
-      # minio_server:
-      #   condition: service_healthy
     networks:
       - net-database
       - net-storage

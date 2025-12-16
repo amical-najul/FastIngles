@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, JSON, func
+from sqlalchemy import Column, Integer, String, DateTime, JSON, func, ForeignKey
 from app.database import Base
 
 
@@ -9,10 +9,12 @@ class Lesson(Base):
     id = Column(Integer, primary_key=True, index=True)
     day_id = Column(Integer, unique=True, nullable=False, index=True)
     topic = Column(String, nullable=False)
-    category = Column(String, nullable=False)  # verbs, adjectives, nouns, adverbs
+    category = Column(String, nullable=True)  # verbs, adjectives, nouns, adverbs (keeping as string for compatibility)
     content = Column(JSON, nullable=False)  # Array of WordEntry
     word_count = Column(Integer, nullable=False)
     ai_provider = Column(String, nullable=True)  # Which AI generated this
     ai_model = Column(String, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
