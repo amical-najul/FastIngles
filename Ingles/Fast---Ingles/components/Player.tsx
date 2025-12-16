@@ -90,7 +90,7 @@ const RoundQuiz = ({ words, onComplete, darkMode }: { words: WordEntry[], onComp
 
     if (showResult) {
         return (
-            <div className={`absolute inset - 0 ${bgClass} z - 50 flex flex - col items - center justify - center p - 6 text - center animate -in fade -in `}>
+            <div className={`absolute inset-0 ${bgClass} z-50 flex flex-col items-center justify-center p-6 text-center animate-in fade-in`}>
                 <div className="mb-6">
                     {score === 3 ? (
                         <span className="text-6xl">🏆</span>
@@ -100,7 +100,7 @@ const RoundQuiz = ({ words, onComplete, darkMode }: { words: WordEntry[], onComp
                         <span className="text-6xl">😅</span>
                     )}
                 </div>
-                <h3 className={`text - 2xl font - bold ${textPrimary} mb - 2`}>Ronda Completada</h3>
+                <h3 className={`text-2xl font-bold ${textPrimary} mb-2`}>Ronda Completada</h3>
                 <p className="text-slate-400 mb-6">Acertaste {score} de 3</p>
                 <Button onClick={onComplete} variant="primary" className="w-full max-w-xs">
                     Continuar Curso
@@ -112,14 +112,14 @@ const RoundQuiz = ({ words, onComplete, darkMode }: { words: WordEntry[], onComp
     const currentQ = questions.current[questionIdx];
 
     return (
-        <div className={`absolute inset - 0 ${bgClass} z - 50 flex flex - col items - center justify - center p - 6 animate -in slide -in -from - right`}>
+        <div className={`absolute inset-0 ${bgClass} z-50 flex flex-col items-center justify-center p-6 animate-in slide-in-from-right`}>
             <h3 className="text-emerald-500 font-bold tracking-widest uppercase mb-8 text-sm">
                 Quiz Rápido ({questionIdx + 1}/3)
             </h3>
 
             <div className="mb-10 text-center">
                 <p className="text-slate-500 text-sm mb-2">¿Cómo se dice?</p>
-                <h2 className={`text - 3xl font - black ${textPrimary} `}>{currentQ.target.translation}</h2>
+                <h2 className={`text-3xl font-black ${textPrimary}`}>{currentQ.target.translation}</h2>
             </div>
 
             <div className="grid gap-4 w-full max-w-sm">
@@ -146,7 +146,7 @@ const RoundQuiz = ({ words, onComplete, darkMode }: { words: WordEntry[], onComp
                             key={i}
                             onClick={() => handleAnswer(opt)}
                             disabled={lastAnswerCorrect !== null}
-                            className={`p - 4 rounded - xl font - bold text - lg transition - all duration - 300 ${btnClass} active: scale - 95`}
+                            className={`p-4 rounded-xl font-bold text-lg transition-all duration-300 ${btnClass} active:scale-95`}
                         >
                             {opt}
                         </button>
@@ -195,7 +195,23 @@ export const Player: React.FC<PlayerProps> = ({ words, topic, dayId, initialInde
     const prefs = storageService.getPreferences();
     const visualizationTime = prefs.visualizationSeconds || 20;
 
-    const currentWord = words[currentIndex];
+    // Guard: If no words data, show error state immediately
+    if (!words || words.length === 0) {
+        return (
+            <div className={`fixed inset-0 ${darkMode ? 'bg-slate-900' : 'bg-slate-50'} flex flex-col items-center justify-center p-8 z-50`}>
+                <div className="text-center">
+                    <div className="text-6xl mb-4">⚠️</div>
+                    <h2 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-slate-900'} mb-2`}>Sin Contenido</h2>
+                    <p className="text-slate-400 mb-6">Este nivel no tiene contenido disponible.</p>
+                    <Button variant="primary" onClick={onExit}>Volver al Inicio</Button>
+                </div>
+            </div>
+        );
+    }
+
+    // Safe index calculation (always within bounds)
+    const safeIndex = currentIndex >= 0 && currentIndex < words.length ? currentIndex : 0;
+    const currentWord = words[safeIndex]!; // Safe to assert non-null after guard
 
     // Helper to identify Quiz Checkpoints - Now DYNAMIC based on word count
     const getQuizRange = (index: number) => {
@@ -541,9 +557,9 @@ export const Player: React.FC<PlayerProps> = ({ words, topic, dayId, initialInde
 
     if (isCompleted) {
         return (
-            <div className={`fixed inset - 0 ${darkMode ? 'bg-slate-900' : 'bg-slate-50'} flex flex - col items - center justify - center p - 8 z - 50 animate -in fade -in duration - 500`}>
-                <div className={`${darkMode ? 'bg-slate-800 border-emerald-500/30' : 'bg-white border-emerald-200 shadow-xl'} p - 8 rounded - 3xl border text - center max - w - sm w - full`}>
-                    <h2 className={`text - 3xl font - black ${darkMode ? 'text-white' : 'text-slate-900'} mb - 2`}>¡Nivel Completado!</h2>
+            <div className={`fixed inset-0 ${darkMode ? 'bg-slate-900' : 'bg-slate-50'} flex flex-col items-center justify-center p-8 z-50 animate-in fade-in duration-500`}>
+                <div className={`${darkMode ? 'bg-slate-800 border-emerald-500/30' : 'bg-white border-emerald-200 shadow-xl'} p-8 rounded-3xl border text-center max-w-sm w-full`}>
+                    <h2 className={`text-3xl font-black ${darkMode ? 'text-white' : 'text-slate-900'} mb-2`}>¡Nivel Completado!</h2>
                     <p className="text-slate-400 mb-8">Has dominado los {words.length} {getCategoryLabel(category ?? 'verbs' as CategoryType)}.</p>
                     <div className="space-y-4">
                         <Button variant="primary" fullWidth onClick={handleRestartSection} className="py-4 text-lg">Volver a estudiar</Button>
@@ -561,7 +577,7 @@ export const Player: React.FC<PlayerProps> = ({ words, topic, dayId, initialInde
     const sentenceBg = darkMode ? 'bg-slate-800/40 border-slate-700/30' : 'bg-white/60 border-slate-200/50';
 
     return (
-        <div className={`fixed inset - 0 ${bgClass} flex flex - col items - center justify - between p - 6 overflow - hidden`}>
+        <div className={`fixed inset-0 ${bgClass} flex flex-col items-center justify-between p-6 overflow-hidden`}>
             {showQuiz && <RoundQuiz words={quizWords} onComplete={handleQuizComplete} darkMode={darkMode} />}
 
             <audio ref={audioRef} className="hidden" playsInline />
@@ -583,15 +599,15 @@ export const Player: React.FC<PlayerProps> = ({ words, topic, dayId, initialInde
             <div className="flex-1 flex flex-col items-center justify-center w-full max-w-md gap-4 text-center animate-in fade-in zoom-in duration-300 relative overflow-hidden">
 
                 {waitingForNext && (
-                    <div className={`absolute inset - 0 z - 10 flex flex - col items - center justify - center rounded - 2xl backdrop - blur - sm animate -in fade -in p - 6 ${darkMode ? 'bg-slate-900/95' : 'bg-slate-50/95'} `}>
+                    <div className={`absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl backdrop-blur-sm animate-in fade-in p-6 ${darkMode ? 'bg-slate-900/95' : 'bg-slate-50/95'}`}>
                         <p className="text-emerald-500 font-bold tracking-widest uppercase mb-4 animate-pulse">
                             {isTimerPaused ? "Pausado" : "Visualiza la asociación"}
                         </p>
-                        <div className={`text - 8xl font - black font - mono mb - 6 transition - opacity ${isTimerPaused ? "opacity-50" : "opacity-100"} ${textPrimary} `}>
+                        <div className={`text-8xl font-black font-mono mb-6 transition-opacity ${isTimerPaused ? "opacity-50" : "opacity-100"} ${textPrimary}`}>
                             {secondsLeft}
                         </div>
                         <div className="px-4 space-y-4 mb-6">
-                            <p className={`italic text - lg leading - relaxed ${textMuted} `}>"{currentWord.mnemonic}"</p>
+                            <p className={`italic text-lg leading-relaxed ${textMuted}`}>"{currentWord.mnemonic}"</p>
                         </div>
 
                         <div className="flex gap-4">
@@ -602,20 +618,20 @@ export const Player: React.FC<PlayerProps> = ({ words, topic, dayId, initialInde
                 )}
 
                 <div className="space-y-1 shrink-0">
-                    <h2 className={`text - 4xl md: text - 5xl font - black tracking - tight ${textPrimary} `}>{currentWord.word}</h2>
+                    <h2 className={`text-4xl md:text-5xl font-black tracking-tight ${textPrimary}`}>{currentWord.word}</h2>
                     <p className="text-lg text-emerald-500 font-mono">/{currentWord.pronunciation}/</p>
-                    <p className={`text - xl font - medium ${textMuted} `}>{currentWord.translation}</p>
+                    <p className={`text-xl font-medium ${textMuted}`}>{currentWord.translation}</p>
                 </div>
 
-                <div className={`${cardBg} p - 4 rounded - 2xl border backdrop - blur - sm w - full shrink - 0`}>
-                    <p className={`text - base leading - relaxed font - serif italic ${darkMode ? 'text-slate-200' : 'text-slate-700'} `}>"{currentWord.mnemonic}"</p>
+                <div className={`${cardBg} p-4 rounded-2xl border backdrop-blur-sm w-full shrink-0`}>
+                    <p className={`text-base leading-relaxed font-serif italic ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>"{currentWord.mnemonic}"</p>
                 </div>
 
                 <div className="space-y-2 w-full text-left overflow-y-auto max-h-[30vh] pr-2 scrollbar-thin scrollbar-thumb-slate-700">
                     {currentWord.sentences.map((sent, i) => (
-                        <div key={i} className={`flex gap - 3 items - start p - 3 rounded - lg border ${sentenceBg} `}>
+                        <div key={i} className={`flex gap-3 items-start p-3 rounded-lg border ${sentenceBg}`}>
                             <span className="text-emerald-600 font-bold text-xs mt-0.5">{i + 1}</span>
-                            <p className={`text - sm leading - snug ${textMuted} `}>{sent}</p>
+                            <p className={`text-sm leading-snug ${textMuted}`}>{sent}</p>
                         </div>
                     ))}
                 </div>
@@ -623,7 +639,7 @@ export const Player: React.FC<PlayerProps> = ({ words, topic, dayId, initialInde
 
             {/* Controls */}
             <div className="w-full max-w-md mb-8 z-20 shrink-0 mt-4">
-                <div className={`w - full h - 1.5 rounded - full mb - 6 overflow - hidden ${darkMode ? 'bg-slate-800' : 'bg-slate-200'} `}>
+                <div className={`w-full h-1.5 rounded-full mb-6 overflow-hidden ${darkMode ? 'bg-slate-800' : 'bg-slate-200'}`}>
                     <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${((currentIndex + 1) / words.length) * 100}% ` }} />
                 </div>
 
@@ -635,7 +651,7 @@ export const Player: React.FC<PlayerProps> = ({ words, topic, dayId, initialInde
                     <Button
                         variant="primary"
                         onClick={waitingForNext ? handleReplayCurrent : togglePlay}
-                        className={`rounded - full w - 20 h - 20 p - 0 shadow - emerald - 500 / 40 transition - all ${loadingAudio ? 'scale-105' : ''} `}
+                        className={`rounded-full w-20 h-20 p-0 shadow-emerald-500/40 transition-all ${loadingAudio ? 'scale-105' : ''}`}
                     >
                         {loadingAudio ? (
                             <svg className="animate-spin h-8 w-8 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
