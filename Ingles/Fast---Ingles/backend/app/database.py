@@ -10,7 +10,13 @@ engine = create_async_engine(
     future=True,
     # Required for Supabase Transaction Pooler (pgbouncer/Supavisor)
     # Transaction mode doesn't support prepared statements
-    connect_args={"prepared_statement_cache_size": 0}
+    connect_args={
+        "prepared_statement_cache_size": 0,
+        "server_settings": {
+            "jit": "off",
+            "statement_timeout": "60000"
+        }
+    }
 )
 
 async_session = async_sessionmaker(

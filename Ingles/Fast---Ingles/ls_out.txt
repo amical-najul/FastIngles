@@ -1,0 +1,6 @@
+total 24
+drwxr-xr-x 3 root    root    4096 Dec 16 17:36 .
+drwxr-xr-x 1 appuser appuser 4096 Dec 16 17:49 ..
+-rwxr-xr-x 1 root    root    3395 Dec 16 17:25 test_api_integration.py
+-rwxr-xr-x 1 root    root    2817 Dec 16 17:25 test_crud_flow.py
+drwxr-xr-x 2 root    root    4096 Dec 16 17:42 tests
