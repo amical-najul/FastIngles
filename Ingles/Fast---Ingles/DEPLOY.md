@@ -10,7 +10,7 @@ Esta guía contiene los comandos exactos configurados con tus datos reales para 
 Si quieres probar en tu PC conectándote a la nube (solo desarrollo), crea un `.env`:
 ```env
 API_KEY=TU_CLAVE_GEMINI_AI
-DATABASE_URL=postgres://postgres:Colombia1@_@34.134.240.133:5432/fast_ingles
+DATABASE_URL=postgres://postgres:[PASSWORD]@[IP]:5432/fast_ingles
 ```
 *(Nota: Para conectar localmente a la IP pública 34.134.240.133 necesitas autorizar tu IP de casa en la consola de Cloud SQL > Conexiones > Redes).*
 
