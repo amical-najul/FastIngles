@@ -2,6 +2,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { WordEntry, DayTopic } from "../types";
 import { storageService } from "./storageService";
+import { apiService } from "./apiService";
 import { STAGES } from "../constants";
 
 // Initialize Gemini Client directly in browser
@@ -29,79 +30,52 @@ const parseGeminiResponse = (text: string): WordEntry[] => {
     }
     return entries;
 };
-
 export const generateDailyLesson = async (dayId: number, topic: string): Promise<WordEntry[]> => {
-    try {
-        // 1. Check Local Storage first
-        const cachedData = storageService.getLesson(dayId);
-        if (cachedData && cachedData.length > 0) {
-            console.log(`Loaded Stage ${dayId} from local browser cache.`);
-            return cachedData;
+    const MAX_RETRIES = 2;
+    const RETRY_DELAY_MS = 30000; // 30 seconds
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            // Check Backend API (Database) - ONLY source of data for users
+            const dbLesson = await apiService.getLesson(dayId);
+
+            if (dbLesson && dbLesson.content && dbLesson.content.length > 0) {
+                console.log(`Loaded Stage ${dayId} from Backend Database.`);
+                return dbLesson.content;
+            }
+
+            // No data found in database
+            throw new Error("NO_DATA");
+
+        } catch (error: any) {
+            console.error(`Attempt ${attempt}/${MAX_RETRIES} failed:`, error);
+
+            if (error.message === "NO_DATA") {
+                // No data exists - don't retry, just fail
+                throw new Error(
+                    "Este nivel aún no está disponible. " +
+                    "El administrador debe generar el contenido primero. " +
+                    "Contacte a soporte: support@fast-ingles.com"
+                );
+            }
+
+            // Connection error - retry after delay
+            if (attempt < MAX_RETRIES) {
+                console.log(`Reintentando en ${RETRY_DELAY_MS / 1000} segundos...`);
+                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+            } else {
+                // All retries exhausted
+                throw new Error(
+                    "Problemas de conexión con el servidor. " +
+                    "Por favor verifica tu conexión a internet. " +
+                    "Si el problema persiste, contacte a soporte: support@fast-ingles.com"
+                );
+            }
         }
-
-        console.log(`Generating Stage ${dayId} with Client-Side AI...`);
-
-        // Find stage config to get word count and category
-        const stageConfig = STAGES.find(s => s.id === dayId);
-        const wordCount = stageConfig ? stageConfig.wordCount : 50;
-        const category = stageConfig ? stageConfig.category : 'verbs';
-
-        // Check if it's an irregular verb topic
-        const isIrregular = topic.toLowerCase().includes("irregular");
-        const irregularInstruction = isIrregular
-            ? "IMPORTANT: For the 'Word' column, you MUST provide the 3 forms separated by slash: Base / Past / Participle (e.g., 'Go / Went / Gone')."
-            : "";
-
-        // Adjust prompt based on category
-        let partOfSpeechInstruction = "";
-        if (category === 'adjectives') partOfSpeechInstruction = "Focus on ADJECTIVES (Adjetivos).";
-        if (category === 'nouns') partOfSpeechInstruction = "Focus on NOUNS (Sustantivos).";
-        if (category === 'adverbs') partOfSpeechInstruction = "Focus on ADVERBS (Adverbios).";
-        if (category === 'verbs') partOfSpeechInstruction = "Focus on VERBS (Verbos).";
-
-        const prompt = `
-    Task: Generate exactly ${wordCount} English words based on this specific concept/topic: "${topic}".
-    CRITICAL: ${partOfSpeechInstruction}
-    Method: Ramón Campayo / Fast-Ingles (Word, Pronunciation, Translation, 5 Sentences, Mnemonic).
-    
-    ${irregularInstruction}
-
-    OUTPUT FORMAT:
-    Return ONLY a list using the pipe character (|) as separator. NO Markdown, NO JSON, NO Headers.
-    Format per line (9 columns):
-    Word|Pronunciation|Translation|Sentence1|Sentence2|Sentence3|Sentence4|Sentence5|Mnemonic
-
-    Examples:
-    (Verb): To Run|Ran|Correr|I run fast.|He runs home.|...|Imagina una RANA ("Run") que CORRE muy rápido.
-    (Adj):  Big|Big|Grande|The house is big.|...|...|Imagina un BIG-ote ("Big") muy GRANDE.
-    (Noun): House|Haus|Casa|My house is red.|...|...|Imagina a Dr. HOUSE ("House") en tu CASA.
-
-    Ensure:
-    1. Exactly ${wordCount} lines.
-    2. Exactly 5 sentences per word.
-    3. Mnemonic must be in Spanish.
-    4. Sentences should be simple and use the target word clearly.
-    `;
-
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-
-        if (!text) throw new Error("No text response from AI");
-
-        const data = parseGeminiResponse(text);
-
-        if (data && data.length > 0) {
-            storageService.saveLesson(dayId, data);
-            return data;
-        } else {
-            throw new Error("AI returned empty list or invalid format");
-        }
-
-    } catch (error) {
-        console.error("Error generating lesson client-side:", error);
-        throw error;
     }
+
+    // Should never reach here, but TypeScript needs it
+    throw new Error("Error inesperado. Contacte a soporte.");
 };
 
 /**

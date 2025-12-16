@@ -200,6 +200,57 @@ async def get_lesson(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@router.get("/{day_id}/section/{section_id}")
+async def get_lesson_section(
+    day_id: int,
+    section_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get a section of the lesson for optimized memory usage.
+    Section 1: words 1-15 (indices 0-14)
+    Section 2: words 16-30 (indices 15-29)
+    Section 3: words 31-end (indices 30+)
+    """
+    try:
+        result = await db.execute(select(Lesson).where(Lesson.day_id == day_id))
+        lesson = result.scalar_one_or_none()
+        
+        if not lesson:
+            raise HTTPException(status_code=404, detail="Lesson not found")
+        
+        content = lesson.content or []
+        total_words = len(content)
+        
+        # Define section boundaries
+        if section_id == 1:
+            start, end = 0, 15
+        elif section_id == 2:
+            start, end = 15, 30
+        elif section_id == 3:
+            start, end = 30, total_words  # From 30 to end (adapts to any length)
+        else:
+            raise HTTPException(status_code=400, detail="Invalid section_id. Use 1, 2, or 3")
+        
+        # Slice content
+        section_content = content[start:end]
+        
+        return {
+            "day_id": day_id,
+            "section_id": section_id,
+            "content": section_content,
+            "total_words": total_words,
+            "section_start": start + 1,  # 1-indexed for frontend
+            "section_end": min(end, total_words),
+            "is_last_section": end >= total_words
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching lesson section {day_id}/{section_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
 @router.put("/{day_id}", response_model=LessonResponse)
 async def update_lesson(
     day_id: int, 

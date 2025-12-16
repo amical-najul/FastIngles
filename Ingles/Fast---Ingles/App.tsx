@@ -103,9 +103,9 @@ const App: React.FC = () => {
       if (data.length === 0) throw new Error("Recibimos una lista vacía.");
       setLessonData(data);
       setAppState(AppState.PLAYER);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError("No pudimos generar la lección. Por favor intenta de nuevo.");
+      setError(err.message || "No pudimos cargar la lección. Por favor intenta de nuevo.");
       setAppState(AppState.ERROR);
     }
   };

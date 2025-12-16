@@ -110,6 +110,22 @@ export const apiService = {
     },
 
     /**
+     * Get a section of the lesson for optimized memory usage.
+     * Section 1: words 1-15, Section 2: words 16-30, Section 3: words 31-end
+     */
+    getLessonSection: async (dayId: number, sectionId: number) => {
+        try {
+            const response = await api.get(`/lessons/${dayId}/section/${sectionId}`);
+            return response.data;
+        } catch (error) {
+            if (axios.isAxiosError(error) && error.response?.status === 404) {
+                return null;
+            }
+            throw error;
+        }
+    },
+
+    /**
      * Get TTS audio URL from backend.
      * Returns a presigned URL or direct stream URL.
      */

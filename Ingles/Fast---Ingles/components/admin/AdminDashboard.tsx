@@ -36,6 +36,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, 
     const [audioProgress, setAudioProgress] = useState(0);
     const [currentProcessingWord, setCurrentProcessingWord] = useState('');
 
+    // Word Editing States
+    const [editingIndex, setEditingIndex] = useState<number | null>(null);
+    const [editForm, setEditForm] = useState<WordEntry | null>(null);
+    const [selectAll, setSelectAll] = useState(false);
+    const [selectedWords, setSelectedWords] = useState<Set<number>>(new Set());
+
     const categories: { id: CategoryType, label: string, icon: string }[] = [
         { id: 'verbs', label: 'Verbos', icon: '⚡' },
         { id: 'adjectives', label: 'Adjetivos', icon: '🎨' },
@@ -182,6 +188,72 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, 
             setSaveMessage({ type: 'error', text: 'Error reproduciendo audio' });
             setTimeout(() => setSaveMessage(null), 3000);
         }
+    };
+
+    // --- WORD EDITING HANDLERS ---
+    const handleStartEdit = (index: number) => {
+        setEditingIndex(index);
+        setEditForm({ ...generatedContent[index] });
+    };
+
+    const handleCancelEdit = () => {
+        setEditingIndex(null);
+        setEditForm(null);
+    };
+
+    const handleSaveEdit = () => {
+        if (editingIndex === null || !editForm) return;
+        const newContent = [...generatedContent];
+        newContent[editingIndex] = editForm;
+        setGeneratedContent(newContent);
+        setEditingIndex(null);
+        setEditForm(null);
+    };
+
+    const handleAddWord = () => {
+        const newWord: WordEntry = {
+            word: '',
+            pronunciation: '',
+            translation: '',
+            sentences: ['', '', '', '', ''],
+            mnemonic: ''
+        };
+        const newContent = [...generatedContent, newWord];
+        setGeneratedContent(newContent);
+        setEditingIndex(newContent.length - 1);
+        setEditForm(newWord);
+    };
+
+    const handleUpdateEditForm = (field: keyof WordEntry, value: string | string[]) => {
+        if (!editForm) return;
+        setEditForm({ ...editForm, [field]: value });
+    };
+
+    const handleUpdateSentence = (index: number, value: string) => {
+        if (!editForm) return;
+        const newSentences = [...editForm.sentences];
+        newSentences[index] = value;
+        setEditForm({ ...editForm, sentences: newSentences });
+    };
+
+    const handleToggleSelectAll = () => {
+        if (selectAll) {
+            setSelectedWords(new Set());
+        } else {
+            setSelectedWords(new Set(generatedContent.map((_, i) => i)));
+        }
+        setSelectAll(!selectAll);
+    };
+
+    const handleToggleWordSelection = (index: number) => {
+        const newSelection = new Set(selectedWords);
+        if (newSelection.has(index)) {
+            newSelection.delete(index);
+        } else {
+            newSelection.add(index);
+        }
+        setSelectedWords(newSelection);
+        setSelectAll(newSelection.size === generatedContent.length);
     };
 
     // --- RENDER ---
@@ -417,34 +489,138 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, 
                                         </div>
                                     ) : generatedContent.length > 0 ? (
                                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                                            {/* Header with Select All and Add Button */}
+                                            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+                                                <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectAll}
+                                                        onChange={handleToggleSelectAll}
+                                                        className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                                    />
+                                                    Seleccionar Todo
+                                                </label>
+                                                <button
+                                                    onClick={handleAddWord}
+                                                    className="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors flex items-center gap-2 text-sm font-bold"
+                                                >
+                                                    + Manual
+                                                </button>
+                                            </div>
                                             <div className="overflow-x-auto">
                                                 <table className="w-full text-left border-collapse">
                                                     <thead>
                                                         <tr className="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 uppercase">
-                                                            <th className="p-4 font-bold">Word</th>
-                                                            <th className="p-4 font-bold">Pronunciation</th>
-                                                            <th className="p-4 font-bold">Audio</th>
-                                                            <th className="p-4 font-bold">Translation</th>
-                                                            <th className="p-4 font-bold">Mnemonic</th>
+                                                            <th className="p-4 font-bold w-10">#</th>
+                                                            <th className="p-4 font-bold">Palabra</th>
+                                                            <th className="p-4 font-bold">Traducción</th>
+                                                            <th className="p-4 font-bold">Mnemotecnia</th>
+                                                            <th className="p-4 font-bold w-16"></th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-slate-100">
                                                         {generatedContent.map((word, idx) => (
-                                                            <tr key={idx} className="hover:bg-slate-50 transition-colors group">
-                                                                <td className="p-4 font-bold text-slate-800">{word.word}</td>
-                                                                <td className="p-4 text-slate-600 font-mono text-xs">{word.pronunciation}</td>
-                                                                <td className="p-4">
-                                                                    <button
-                                                                        onClick={() => handlePlayAudio(word.word)}
-                                                                        className="p-2 bg-emerald-100 text-emerald-600 rounded-full hover:bg-emerald-200 transition-colors"
-                                                                        title="Escuchar Pronunciación"
-                                                                    >
-                                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
-                                                                    </button>
-                                                                </td>
-                                                                <td className="p-4 text-slate-600">{word.translation}</td>
-                                                                <td className="p-4 text-slate-500 text-sm italic">{word.mnemonic}</td>
-                                                            </tr>
+                                                            <React.Fragment key={idx}>
+                                                                {/* Main Row */}
+                                                                <tr className={`hover:bg-slate-50 transition-colors ${editingIndex === idx ? 'bg-slate-100' : ''}`}>
+                                                                    <td className="p-4">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={selectedWords.has(idx)}
+                                                                            onChange={() => handleToggleWordSelection(idx)}
+                                                                            className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                                                        />
+                                                                    </td>
+                                                                    <td className="p-4 font-bold text-blue-600">{word.word || <span className="text-slate-400 italic">Sin palabra</span>}</td>
+                                                                    <td className="p-4 text-slate-600">{word.translation || <span className="text-slate-400 italic">Sin traducción</span>}</td>
+                                                                    <td className="p-4 text-orange-500 text-sm italic max-w-xs truncate">{word.mnemonic || <span className="text-slate-400">Sin mnemotecnia</span>}</td>
+                                                                    <td className="p-4 flex items-center gap-1">
+                                                                        <button
+                                                                            onClick={() => handlePlayAudio(word.word)}
+                                                                            className="p-2 text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                                                                            title="Escuchar pronunciación"
+                                                                            disabled={!word.word}
+                                                                        >
+                                                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleStartEdit(idx)}
+                                                                            className="p-2 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
+                                                                            title="Editar palabra"
+                                                                        >
+                                                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                                {/* Inline Edit Form Row */}
+                                                                {editingIndex === idx && editForm && (
+                                                                    <tr>
+                                                                        <td colSpan={5} className="p-0">
+                                                                            <div className="bg-slate-800 p-4 space-y-3">
+                                                                                {/* Row 1: Word + Translation */}
+                                                                                <div className="grid grid-cols-2 gap-4">
+                                                                                    <input
+                                                                                        type="text"
+                                                                                        value={editForm.word}
+                                                                                        onChange={(e) => handleUpdateEditForm('word', e.target.value)}
+                                                                                        placeholder="Palabra (EN)"
+                                                                                        className="w-full px-4 py-3 bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-emerald-500 focus:outline-none"
+                                                                                    />
+                                                                                    <input
+                                                                                        type="text"
+                                                                                        value={editForm.translation}
+                                                                                        onChange={(e) => handleUpdateEditForm('translation', e.target.value)}
+                                                                                        placeholder="Traducción (ES)"
+                                                                                        className="w-full px-4 py-3 bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-emerald-500 focus:outline-none"
+                                                                                    />
+                                                                                </div>
+                                                                                {/* Row 2: Pronunciation */}
+                                                                                <input
+                                                                                    type="text"
+                                                                                    value={editForm.pronunciation}
+                                                                                    onChange={(e) => handleUpdateEditForm('pronunciation', e.target.value)}
+                                                                                    placeholder="Pronunciación fonética"
+                                                                                    className="w-full px-4 py-3 bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-emerald-500 focus:outline-none"
+                                                                                />
+                                                                                {/* Row 3: Mnemonic */}
+                                                                                <textarea
+                                                                                    value={editForm.mnemonic}
+                                                                                    onChange={(e) => handleUpdateEditForm('mnemonic', e.target.value)}
+                                                                                    placeholder="Asociación inverosímil (mnemotecnia en español)"
+                                                                                    rows={2}
+                                                                                    className="w-full px-4 py-3 bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-emerald-500 focus:outline-none resize-none"
+                                                                                />
+                                                                                {/* Rows 4-8: 5 Sentences */}
+                                                                                {[0, 1, 2, 3, 4].map((sentenceIdx) => (
+                                                                                    <input
+                                                                                        key={sentenceIdx}
+                                                                                        type="text"
+                                                                                        value={editForm.sentences[sentenceIdx] || ''}
+                                                                                        onChange={(e) => handleUpdateSentence(sentenceIdx, e.target.value)}
+                                                                                        placeholder={`Oración ${sentenceIdx + 1} (EN)`}
+                                                                                        className="w-full px-4 py-3 bg-slate-600 text-white rounded-lg border border-slate-500 focus:border-blue-500 focus:outline-none"
+                                                                                    />
+                                                                                ))}
+                                                                                {/* Action Buttons */}
+                                                                                <div className="flex justify-end gap-3 pt-2">
+                                                                                    <button
+                                                                                        onClick={handleCancelEdit}
+                                                                                        className="px-4 py-2 text-slate-300 hover:text-white transition-colors"
+                                                                                    >
+                                                                                        Cancelar
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={handleSaveEdit}
+                                                                                        className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors font-bold"
+                                                                                    >
+                                                                                        Guardar
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </React.Fragment>
                                                         ))}
                                                     </tbody>
                                                 </table>
