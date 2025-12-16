@@ -22,11 +22,11 @@ class UserLogin(BaseModel):
 
 class UserResponse(UserBase):
     """Schema for user response."""
-    id: int
+    id: str  # UUID from Supabase
     role: str
     status: str
     photo_url: Optional[str] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
     
     class Config:
         from_attributes = True
@@ -40,6 +40,6 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     """Token payload data."""
-    user_id: int
+    user_id: str  # UUID from Supabase
     email: str
     role: str
