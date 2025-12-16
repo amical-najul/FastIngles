@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  backend_api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fast-ingles-backend
+    restart: always
+    # REMOVED: env_file support to favor Portainer UI Environment Variables
+    # env_file:
+    #   - .env
+    environment:
+      # --- App Settings ---
+      - APP_NAME=Fast-Ingles VPS
+      - DEBUG=false
+
+      # --- Database (Supabase) ---
+      # Definir valor real en Portainer UI
+      - DATABASE_URL=${DATABASE_URL}
+
+      # --- Security ---
+      - SECRET_KEY=${SECRET_KEY}
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+      # --- AI Provider ---
+      - DEFAULT_AI_PROVIDER=gemini
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+
+      # --- MinIO (Storage) ---
+      - MINIO_ENDPOINT=files.n8nprueba.shop
+      - MINIO_BUCKET=fastingles
+      - MINIO_SECURE=true
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+
+      # --- CORS ---
+      # Permitir el propio dominio del frontend
+      - CORS_ORIGINS=["https://ingles.n8nprueba.shop"]
+
+    networks:
+      - traefik_proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_proxy"
+
+      # Router para API (captura /api, /docs, /redoc)
+      - "traefik.http.routers.ingles-api.rule=Host(`ingles.n8nprueba.shop`) && PathPrefix(`/api`, `/docs`, `/redoc`, `/openapi.json`)"
+      - "traefik.http.routers.ingles-api.entrypoints=websecure"
+      - "traefik.http.routers.ingles-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.ingles-api.loadbalancer.server.port=8000"
+
+      # CORS Headers
+      - "traefik.http.middlewares.api-cors.headers.accesscontrolalloworiginlist=https://ingles.n8nprueba.shop"
+      - "traefik.http.middlewares.api-cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS"
+      - "traefik.http.routers.ingles-api.middlewares=api-cors"
+
+  frontend_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fast-ingles-frontend
+    restart: always
+    depends_on:
+      - backend_api
+    networks:
+      - traefik_proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_proxy"
+
+      # Router para Frontend (Todo lo demás)
+      - "traefik.http.routers.ingles-web.rule=Host(`ingles.n8nprueba.shop`)"
+      - "traefik.http.routers.ingles-web.entrypoints=websecure"
+      - "traefik.http.routers.ingles-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.ingles-web.loadbalancer.server.port=80"
+
+networks:
+  traefik_proxy:
+    external: true
