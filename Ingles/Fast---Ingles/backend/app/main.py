@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.database import init_db
+# from app.database import init_db
 from app.routers.auth import router as auth_router
 from app.routers.lessons import router as lessons_router
 from app.routers.tts import router as tts_router
@@ -16,9 +16,9 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
     # Startup
-    print("🚀 Starting Fast-Ingles API...")
-    await init_db()
-    print("✅ Database initialized")
+    # print("🚀 Starting Fast-Ingles API...")
+    # await init_db()
+    # print("✅ Database initialized")
     yield
     # Shutdown
     print("👋 Shutting down...")

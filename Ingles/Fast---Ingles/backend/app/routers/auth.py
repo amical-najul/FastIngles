@@ -1,65 +1,160 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from supabase import Client
 
-from app.database import get_db
-from app.models.user import User
+from app.supabase_client import get_supabase
 from app.schemas.user import UserCreate, UserLogin, UserResponse, Token
-from app.utils.security import verify_password, get_password_hash, create_access_token, get_current_user
+from app.utils.security import get_password_hash, verify_password, create_access_token
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
-    """Register a new user."""
-    # Check if email exists
-    result = await db.execute(select(User).where(User.email == user_data.email))
-    if result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El correo ya está registrado"
+async def register(user_data: UserCreate, supabase: Client = Depends(get_supabase)):
+    """Register a new user using Supabase REST API."""
+    try:
+        # Check if user exists
+        response = supabase.table("users").select("*").eq("email", user_data.email).execute()
+        if response.data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El correo ya está registrado"
+            )
+        
+        # Create user in database
+        user_record = {
+            "name": user_data.name,
+            "email": user_data.email,
+            "password": get_password_hash(user_data.password),
+            "role": "user",
+            "status": "active"
+        }
+        
+        insert_response = supabase.table("users").insert(user_record).execute()
+        
+        if not insert_response.data:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error al crear usuario"
+            )
+        
+        user = insert_response.data[0]
+        
+        return UserResponse(
+            id=user["id"],
+            name=user["name"],
+            email=user["email"],
+            photo_url=user.get("photo_url"),
+            role=user["role"],
+            status=user["status"]
         )
-    
-    # Create user
-    user = User(
-        name=user_data.name,
-        email=user_data.email,
-        password_hash=get_password_hash(user_data.password),
-        role="user"
-    )
-    
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-    
-    return user
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error interno: {str(e)}"
+        )
 
 
 @router.post("/login", response_model=Token)
-async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
+async def login(credentials: UserLogin, supabase: Client = Depends(get_supabase)):
     """Login and get access token."""
-    result = await db.execute(select(User).where(User.email == credentials.email))
-    user = result.scalar_one_or_none()
-    
-    if not user or not verify_password(credentials.password, user.password_hash):
+    try:
+        # Get user from database
+        response = supabase.table("users").select("*").eq("email", credentials.email).execute()
+        
+        if not response.data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Credenciales inválidas"
+            )
+        
+        user = response.data[0]
+        
+        # Verify password
+        if not verify_password(credentials.password, user["password"]):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Credenciales inválidas"
+            )
+        
+        # Check status
+        if user["status"] == "inactive":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Usuario desactivado"
+            )
+        
+        # Create access token
+        access_token = create_access_token(data={"sub": user["id"]})
+        
+        return {"access_token": access_token, "token_type": "bearer"}
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Credenciales inválidas"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error interno: {str(e)}"
         )
-    
-    if user.status == "inactive":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Usuario desactivado"
-        )
-    
-    access_token = create_access_token(data={"sub": user.id})
-    
-    return {"access_token": access_token, "token_type": "bearer"}
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(current_user: User = Depends(get_current_user)):
+async def get_me(authorization: str = Depends(lambda: None), supabase: Client = Depends(get_supabase)):
     """Get current user information."""
-    return current_user
+    from fastapi import Header
+    from jose import jwt, JWTError
+    from app.config import get_settings
+    
+    settings = get_settings()
+    
+    # Get token from Authorization header
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No autenticado"
+        )
+    
+    token = authorization.split(" ")[1]
+    
+    try:
+        # Decode JWT token
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id: int = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token inválido"
+            )
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido"
+        )
+    
+    # Fetch user from Supabase
+    try:
+        response = supabase.table("users").select("*").eq("id", user_id).execute()
+        
+        if not response.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Usuario no encontrado"
+            )
+        
+        user = response.data[0]
+        
+        return UserResponse(
+            id=user["id"],
+            name=user["name"],
+            email=user["email"],
+            photo_url=user.get("photo_url"),
+            role=user["role"],
+            status=user["status"]
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error interno: {str(e)}"
+        )
