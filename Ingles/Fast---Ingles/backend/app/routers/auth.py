@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from supabase import Client
 
 from app.supabase_client import get_supabase
@@ -97,11 +97,12 @@ async def login(credentials: UserLogin, supabase: Client = Depends(get_supabase)
             detail=f"Error interno: {str(e)}"
         )
 
-
 @router.get("/me", response_model=UserResponse)
-async def get_me(authorization: str = Depends(lambda: None), supabase: Client = Depends(get_supabase)):
+async def get_me(
+    authorization: str = Header(None, alias="Authorization"),
+    supabase: Client = Depends(get_supabase)
+):
     """Get current user information."""
-    from fastapi import Header
     from jose import jwt, JWTError
     from app.config import get_settings
     
@@ -119,7 +120,7 @@ async def get_me(authorization: str = Depends(lambda: None), supabase: Client = 
     try:
         # Decode JWT token
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        user_id: int = payload.get("sub")
+        user_id = payload.get("sub")  # UUID string
         if user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
