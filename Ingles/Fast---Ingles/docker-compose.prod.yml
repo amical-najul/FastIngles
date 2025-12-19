@@ -38,8 +38,18 @@ services:
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
 
+      # --- Firebase (REQUIRED for token verification) ---
+      - GOOGLE_CLOUD_PROJECT=ingles-54212
+
       # --- CORS ---
       - CORS_ORIGINS=${CORS_ORIGINS:-["https://ingles.n8nprueba.shop"]}
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
     networks:
       - default

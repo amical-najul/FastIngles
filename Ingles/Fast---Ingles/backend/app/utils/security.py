@@ -1,74 +1,134 @@
-from datetime import datetime, timedelta
-from typing import Optional
-from jose import JWTError, jwt
-from passlib.context import CryptContext
+
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from firebase_admin import auth
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from passlib.context import CryptContext
+import logging
 
-from app.config import get_settings
+from app.firebase_admin_setup import initialize_firebase_admin
 from app.database import get_db
 from app.models.user import User
-from app.schemas.user import TokenData
 
-settings = get_settings()
+# Ensure app is initialized
+initialize_firebase_admin()
 
+security_scheme = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+logger = logging.getLogger(__name__)
 
+import os
+import json
+import urllib.request
+from jose import jwt
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+def verify_firebase_token_manual(token: str) -> dict:
+    """
+    Manually verify Firebase ID Token using Google's public keys.
+    Bypasses firebase-admin credential requirements.
+    """
+    try:
+        # 1. Get Project ID (Audience)
+        project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+        if not project_id:
+            raise ValueError("GOOGLE_CLOUD_PROJECT env var not set")
 
+        # 2. Fetch Google's Public Keys
+        keys_url = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
+        with urllib.request.urlopen(keys_url) as response:
+            public_keys = json.loads(response.read())
 
-def get_password_hash(password: str) -> str:
-    """Hash a password."""
-    return pwd_context.hash(password)
+        # 3. Get Key ID (kid) from token header
+        header = jwt.get_unverified_header(token)
+        kid = header.get("kid")
+        if not kid or kid not in public_keys:
+            raise ValueError("Invalid Key ID")
 
+        # 4. Verify Token
+        cert_str = public_keys[kid]
+        decoded = jwt.decode(
+            token,
+            cert_str,
+            algorithms=["RS256"],
+            audience=project_id,
+            issuer=f"https://securetoken.google.com/{project_id}"
+        )
+        return decoded
+    except Exception as e:
+        logger.error(f"Manual token verification failed: {e}")
+        raise
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create a JWT access token."""
-    to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+def verify_firebase_token(token: str) -> dict:
+    """
+    Verify Firebase ID Token and return decoded claims.
+    Tries firebase-admin first, falls back to manual verification.
+    """
+    try:
+        # Attempt 1: SDK
+        return auth.verify_id_token(token)
+    except Exception as sdk_error:
+        logger.warning(f"Admin SDK verification failed ({sdk_error}), trying manual verification...")
+        try:
+            # Attempt 2: Manual
+            return verify_firebase_token_manual(token)
+        except Exception as manual_error:
+            logger.error(f"All token verification methods failed. SDK: {sdk_error} | Manual: {manual_error}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired authentication token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
+async def get_current_user_token(credentials: HTTPAuthorizationCredentials = Depends(security_scheme)) -> dict:
+    """
+    Dependency to get verified Firebase Token payload.
+    """
+    if not credentials.credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return verify_firebase_token(credentials.credentials)
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    token_claims: dict = Depends(get_current_user_token),
     db: AsyncSession = Depends(get_db)
 ) -> User:
-    """Get current user from JWT token."""
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    
-    try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        user_id: int = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-    
-    result = await db.execute(select(User).where(User.id == user_id))
+    """
+    Dependency to get the current user from DB based on Firebase Token.
+    """
+    email = token_claims.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Token missing email")
+        
+    result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
     
-    if user is None:
-        raise credentials_exception
-    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
     return user
 
-
-async def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
-    """Check if current user is admin."""
-    if current_user.role != "admin":
+async def get_current_admin(
+    user: User = Depends(get_current_user)
+) -> User:
+    """
+    Dependency to ensure current user is an admin.
+    """
+    if user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
+            detail="Not enough privileges"
         )
-    return current_user
+    return user
+
+# Legacy/Admin Password Helpers
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)

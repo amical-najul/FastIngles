@@ -1,161 +1,88 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Header
-from supabase import Client
 
-from app.supabase_client import get_supabase
-from app.schemas.user import UserCreate, UserLogin, UserResponse, Token
-from app.utils.security import get_password_hash, verify_password, create_access_token
+from fastapi import APIRouter, Depends, HTTPException, status, Body
+from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional
 
-router = APIRouter(prefix="/api/auth", tags=["Authentication"])
+from app.database import get_db
+from app.models.user import User
+from app.utils.security import get_current_user_token
+from app.schemas.user import UserResponse
+from datetime import datetime
 
-
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserCreate, supabase: Client = Depends(get_supabase)):
-    """Register a new user using Supabase REST API."""
-    try:
-        # Check if user exists
-        response = supabase.table("users").select("*").eq("email", user_data.email).execute()
-        if response.data:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El correo ya está registrado"
-            )
-        
-        # Create user in database
-        user_record = {
-            "name": user_data.name,
-            "email": user_data.email,
-            "password": get_password_hash(user_data.password),
-            "role": "user",
-            "status": "active"
-        }
-        
-        insert_response = supabase.table("users").insert(user_record).execute()
-        
-        if not insert_response.data:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error al crear usuario"
-            )
-        
-        user = insert_response.data[0]
-        
-        return UserResponse(
-            id=user["id"],
-            name=user["name"],
-            email=user["email"],
-            photo_url=user.get("photo_url"),
-            role=user["role"],
-            status=user["status"]
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error interno: {str(e)}"
-        )
-
-
-@router.post("/login", response_model=Token)
-async def login(credentials: UserLogin, supabase: Client = Depends(get_supabase)):
-    """Login and get access token."""
-    try:
-        # Get user from database
-        response = supabase.table("users").select("*").eq("email", credentials.email).execute()
-        
-        if not response.data:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Credenciales inválidas"
-            )
-        
-        user = response.data[0]
-        
-        # Verify password
-        if not verify_password(credentials.password, user["password"]):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Credenciales inválidas"
-            )
-        
-        # Check status
-        if user["status"] == "inactive":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Usuario desactivado"
-            )
-        
-        # Create access token
-        access_token = create_access_token(data={"sub": user["id"]})
-        
-        return {"access_token": access_token, "token_type": "bearer"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error interno: {str(e)}"
-        )
+router = APIRouter(
+    prefix="/api/auth",
+    tags=["auth"]
+)
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(
-    authorization: str = Header(None, alias="Authorization"),
-    supabase: Client = Depends(get_supabase)
+async def get_current_user_jit(
+    token_claims: dict = Depends(get_current_user_token),
+    db: AsyncSession = Depends(get_db)
 ):
-    """Get current user information."""
-    from jose import jwt, JWTError
-    from app.config import get_settings
-    
-    settings = get_settings()
-    
-    # Get token from Authorization header
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No autenticado"
-        )
-    
-    token = authorization.split(" ")[1]
-    
+    """
+    Get current user.
+    IMPLEMENTS JIT PROVISIONING:
+    - If user exists in DB (by Firebase UID or Email), return it.
+    - If not, CREATE it using info from token.
+    """
+    firebase_uid = token_claims.get("uid")
+    email = token_claims.get("email")
+    name = token_claims.get("name", email.split("@")[0] if email else "User")
+    picture = token_claims.get("picture")
+
+    if not email:
+        raise HTTPException(status_code=400, detail="Token missing email")
+
+    # 1. Try to find user by email (assuming email is unique and reliable key)
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+
+    if user:
+        # User exists, return it
+        return user
+
+    # 2. CREATE (JIT)
+    new_user = User(
+        email=email,
+        name=name,
+        photo_url=picture,
+        role="user",
+        status="active",
+        password_hash="firebase_managed" # Placeholder
+    )
+    db.add(new_user)
     try:
-        # Decode JWT token
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        user_id = payload.get("sub")  # UUID string
-        if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token inválido"
-            )
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token inválido"
-        )
-    
-    # Fetch user from Supabase
-    try:
-        response = supabase.table("users").select("*").eq("id", user_id).execute()
-        
-        if not response.data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Usuario no encontrado"
-            )
-        
-        user = response.data[0]
-        
-        return UserResponse(
-            id=user["id"],
-            name=user["name"],
-            email=user["email"],
-            photo_url=user.get("photo_url"),
-            role=user["role"],
-            status=user["status"]
-        )
-    except HTTPException:
-        raise
+        await db.commit()
+        await db.refresh(new_user)
+        return new_user
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error interno: {str(e)}"
-        )
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"JIT Provisioning failed: {e}")
+
+
+@router.put("/me", response_model=UserResponse)
+async def update_user_profile(
+    updates: dict = Body(...),
+    token_claims: dict = Depends(get_current_user_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update user profile (Name, Photo) from Frontend Sync.
+    """
+    email = token_claims.get("email")
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if "name" in updates:
+        user.name = updates["name"]
+    if "photo_url" in updates:
+        user.photo_url = updates["photo_url"]
+    
+    await db.commit()
+    await db.refresh(user)
+    return user

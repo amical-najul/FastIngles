@@ -64,7 +64,7 @@ export const AdminUsers: React.FC = () => {
 
     const handleDelete = async (user: User) => {
         if (confirm(`¿Estás seguro de eliminar a ${user.name}? Esta acción no se puede deshacer.`)) {
-            await authService.adminDeleteUser(user.id);
+            await authService.adminDeleteUser(parseInt(user.id));
             loadUsers();
         }
     };
@@ -73,7 +73,7 @@ export const AdminUsers: React.FC = () => {
         e.preventDefault();
         try {
             if (editMode && selectedUser) {
-                await authService.adminUpdateUser(selectedUser.id, {
+                await authService.adminUpdateUser(parseInt(selectedUser.id), {
                     name: formData.name,
                     email: formData.email,
                     role: formData.role,
@@ -142,16 +142,16 @@ export const AdminUsers: React.FC = () => {
                                 </td>
                                 <td className="px-6 py-4">
                                     <span className={`px-2 py-1 rounded-full text-xs font-bold ${user.role === 'admin'
-                                            ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                                            : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                        ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                                        : 'bg-slate-100 text-slate-600 border border-slate-200'
                                         }`}>
                                         {user.role === 'admin' ? 'Administrador' : 'Usuario'}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4">
                                     <span className={`px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1 w-fit ${user.status === 'inactive'
-                                            ? 'bg-red-100 text-red-700 border border-red-200'
-                                            : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                        ? 'bg-red-100 text-red-700 border border-red-200'
+                                        : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                                         }`}>
                                         <span className={`w-1.5 h-1.5 rounded-full ${user.status === 'inactive' ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
                                         {user.status === 'inactive' ? 'Inactivo' : 'Activo'}

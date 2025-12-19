@@ -1,16 +1,20 @@
 
 import React, { useState, useEffect } from 'react';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Dashboard } from './components/Dashboard';
 import { Player } from './components/Player';
-import { AuthScreen } from './components/AuthScreen';
 import { ProgressScreen } from './components/ProgressScreen';
 import { SettingsScreen } from './components/SettingsScreen';
 import { PracticeSelectionScreen } from './components/PracticeSelectionScreen';
-import { AdminDashboard } from './components/admin/AdminDashboard'; // Import Admin Interface
-import { AppState, WordEntry, User, CategoryType, DayTopic } from './types';
+import { AdminDashboard } from './components/admin/AdminDashboard';
+import { LoginScreen } from './components/auth/LoginScreen';
+import { RegisterScreen } from './components/auth/RegisterScreen';
+import { ForgotPasswordScreen } from './components/auth/ForgotPasswordScreen';
+import { VerifyEmailScreen } from './components/auth/VerifyEmailScreen';
+
+import { AppState, WordEntry, User, CategoryType } from './types';
 import { generateDailyLesson } from './services/geminiService';
 import { storageService } from './services/storageService';
-import { authService } from './services/authService';
 import { STAGES } from './constants';
 
 // Helper to get category label in Spanish for loading messages
@@ -24,16 +28,18 @@ const getCategoryLabel = (category: CategoryType): string => {
   return labels[category] || 'palabras';
 };
 
-const App: React.FC = () => {
-  const [appState, setAppState] = useState<AppState>(AppState.AUTH);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+const AppContent: React.FC = () => {
+  const { user, dbUser, loading, logout } = useAuth();
 
-  // New State to toggle views for Admins ('admin' | 'user')
+  // Auth View State
+  const [authView, setAuthView] = useState<'login' | 'register' | 'forgot'>('login');
+
+  // App State
+  const [appState, setAppState] = useState<AppState>(AppState.DASHBOARD);
   const [viewMode, setViewMode] = useState<'admin' | 'user'>('user');
-
-  // New Dark Mode State
   const [darkMode, setDarkMode] = useState(true);
 
+  // Learning State
   const [currentTopic, setCurrentTopic] = useState<string>("");
   const [currentDayId, setCurrentDayId] = useState<number>(0);
   const [lessonData, setLessonData] = useState<WordEntry[]>([]);
@@ -42,46 +48,31 @@ const App: React.FC = () => {
   const [currentWordCount, setCurrentWordCount] = useState<number>(50);
   const [error, setError] = useState<string | null>(null);
 
-  // Check for session and prefs on mount
+  // Initial Config Load
   useEffect(() => {
-    const user = authService.getCurrentUser();
-    if (user) {
-      setCurrentUser(user);
-      initializeViewMode(user);
-    } else {
-      setAppState(AppState.AUTH);
-    }
     const prefs = storageService.getPreferences();
     setDarkMode(prefs.darkMode);
   }, []);
 
-  // Set initial view based on role
-  const initializeViewMode = (user: User) => {
-    if (user.role === 'admin') {
+  // Role Sync
+  useEffect(() => {
+    if (dbUser?.role === 'admin') {
       setViewMode('admin');
       setAppState(AppState.ADMIN_DASHBOARD);
-    } else {
+    } else if (dbUser) {
       setViewMode('user');
       setAppState(AppState.DASHBOARD);
     }
-  };
+  }, [dbUser?.role]); // Only re-run if role changes
 
-  const handleLoginSuccess = (user: User) => {
-    setCurrentUser(user);
-    initializeViewMode(user);
-  };
+  // --- HANDLERS ---
 
-  const handleLogout = () => {
-    authService.logout();
-    setCurrentUser(null);
-    setAppState(AppState.AUTH);
-    setLessonData([]);
-    setCurrentDayId(0);
-    setViewMode('user');
+  const handleLogout = async () => {
+    await logout();
+    setAppState(AppState.AUTH); // Not strictly needed as user becomes null
   };
 
   const handleSelectDay = async (dayId: number, topic: string) => {
-    // Find the stage config to get category and wordCount
     const stageConfig = STAGES.find(s => s.id === dayId);
     const category = stageConfig?.category || 'verbs';
     const wordCount = stageConfig?.wordCount || 50;
@@ -94,8 +85,7 @@ const App: React.FC = () => {
     setError(null);
 
     try {
-      await new Promise(r => setTimeout(r, 100));
-
+      await new Promise(r => setTimeout(r, 100)); // UI Breath
       const savedIndex = storageService.getProgress(dayId);
       setInitialPlayerIndex(savedIndex);
 
@@ -113,92 +103,75 @@ const App: React.FC = () => {
   const handleStartPractice = (selectedWords: WordEntry[]) => {
     setLessonData(selectedWords);
     setCurrentTopic("Práctica Personalizada");
-    // Use 0 or -1 for dayId to indicate this is not a trackable daily lesson
     setCurrentDayId(0);
     setInitialPlayerIndex(0);
     setAppState(AppState.PLAYER);
   };
 
-  const handleExitPlayer = () => {
-    setAppState(AppState.DASHBOARD);
-    setLessonData([]);
-    setCurrentDayId(0);
-  };
+  // --- RENDER LOGIC ---
 
-  const handleViewProgress = () => {
-    setAppState(AppState.PROGRESS);
-  };
-
-  const handleOpenSettings = () => {
-    setAppState(AppState.SETTINGS);
-  };
-
-  const handleOpenPractice = () => {
-    setAppState(AppState.PRACTICE_SELECTION);
-  };
-
-  const handleRetry = () => {
-    handleSelectDay(currentDayId, currentTopic);
-  };
-
-  const handleUpdateUser = (updatedUser: User) => {
-    setCurrentUser(updatedUser);
-  };
-
-  const handleUpdateDarkMode = (isDark: boolean) => {
-    setDarkMode(isDark);
-    const prefs = storageService.getPreferences();
-    prefs.darkMode = isDark;
-    storageService.savePreferences(prefs);
-  };
-
-  // --- VIEW SWITCHING LOGIC ---
-  const switchToAppView = () => {
-    setViewMode('user');
-    setAppState(AppState.DASHBOARD);
-  };
-
-  const switchToAdminView = () => {
-    setViewMode('admin');
-    setAppState(AppState.ADMIN_DASHBOARD);
-  };
-
-  // --- RENDER ---
-
-  if (appState === AppState.AUTH) {
-    return <AuthScreen onLoginSuccess={handleLoginSuccess} />;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
   }
 
-  // --- ADMIN INTERFACE RENDER ---
-  // Only render AdminDashboard if user is admin AND viewMode is 'admin'
-  if (currentUser?.role === 'admin' && viewMode === 'admin') {
+  // 1. Not Authenticated -> Show Auth Screens
+  if (!user) {
+    if (authView === 'register') return <RegisterScreen onSwitchToLogin={() => setAuthView('login')} />;
+    if (authView === 'forgot') return <ForgotPasswordScreen onBack={() => setAuthView('login')} />;
+    return <LoginScreen onSwitchToRegister={() => setAuthView('register')} onForgotPassword={() => setAuthView('forgot')} />;
+  }
+
+  // 2. Authenticated but Email NOT Verified -> Show Verify Screen
+  if (!user.emailVerified) {
+    return <VerifyEmailScreen />;
+  }
+
+  // 3. Authenticated & Verified & DB User Loaded (or waiting for it) -> Show App
+  // If dbUser is still null (JIT pending), we might want to show loading or let it flow (dbUser might be null if JIT fails).
+  // Let's assume layout handles null dbUser gracefully or we wait.
+  if (!dbUser && !loading) {
+    // Fallback if DB sync failed on a verified user
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6 text-center">
+        <div>
+          <h2 className="text-xl font-bold text-red-600 mb-2">Error de Sincronización</h2>
+          <p className="text-slate-500 mb-6">No pudimos conectar con tu perfil. Intenta recargar.</p>
+          <button onClick={() => window.location.reload()} className="px-6 py-2 bg-slate-200 rounded-lg">Recargar</button>
+        </div>
+      </div>
+    );
+  }
+
+  // 4. Admin View
+  if (viewMode === 'admin' && dbUser?.role === 'admin') {
     return (
       <AdminDashboard
-        user={currentUser}
+        user={dbUser}
         onLogout={handleLogout}
-        onSwitchToApp={switchToAppView}
+        onSwitchToApp={() => { setViewMode('user'); setAppState(AppState.DASHBOARD); }}
       />
     );
   }
 
-  // --- CONSUMER INTERFACE (User Layout) ---
-  // Renders if user is standard OR if admin switched to 'user' mode
-
-  // Define base classes based on Dark Mode
+  // 5. User View
   const bgClass = darkMode ? 'bg-slate-900 text-slate-100' : 'bg-slate-50 text-slate-900';
 
   return (
     <div className={`antialiased min-h-screen transition-colors duration-300 ${bgClass}`}>
-      {appState === AppState.DASHBOARD && currentUser && (
+      {appState === AppState.DASHBOARD && dbUser && (
         <Dashboard
-          user={currentUser}
+          user={dbUser}
           darkMode={darkMode}
           onSelectDay={handleSelectDay}
           onLogout={handleLogout}
-          onViewProgress={handleViewProgress}
-          onOpenSettings={handleOpenSettings}
-          onOpenPractice={handleOpenPractice}
-          onSwitchToAdmin={currentUser.role === 'admin' ? switchToAdminView : undefined}
+          onViewProgress={() => setAppState(AppState.PROGRESS)}
+          onOpenSettings={() => setAppState(AppState.SETTINGS)}
+          onOpenPractice={() => setAppState(AppState.PRACTICE_SELECTION)}
+          onSwitchToAdmin={dbUser.role === 'admin' ? () => { setViewMode('admin'); setAppState(AppState.ADMIN_DASHBOARD); } : undefined}
         />
       )}
 
@@ -206,13 +179,18 @@ const App: React.FC = () => {
         <ProgressScreen darkMode={darkMode} onBack={() => setAppState(AppState.DASHBOARD)} />
       )}
 
-      {appState === AppState.SETTINGS && currentUser && (
+      {appState === AppState.SETTINGS && dbUser && (
         <SettingsScreen
-          user={currentUser}
+          user={dbUser}
           darkMode={darkMode}
           onBack={() => setAppState(AppState.DASHBOARD)}
-          onUpdateUser={handleUpdateUser}
-          onToggleDarkMode={handleUpdateDarkMode}
+          onUpdateUser={(u) => { /* Optimistic update handled in context usually, but here we can just wait for re-render */ }}
+          onToggleDarkMode={(isDark) => {
+            setDarkMode(isDark);
+            const prefs = storageService.getPreferences();
+            prefs.darkMode = isDark;
+            storageService.savePreferences(prefs);
+          }}
         />
       )}
 
@@ -228,10 +206,6 @@ const App: React.FC = () => {
         <div className="fixed inset-0 bg-black/80 flex flex-col items-center justify-center p-6 text-center z-50">
           <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-6"></div>
           <h2 className="text-xl font-bold text-white mb-2">Creando tu clase de {getCategoryLabel(currentCategory)}...</h2>
-          <p className="text-slate-400 text-sm max-w-xs animate-pulse">
-            Generando {currentWordCount} {getCategoryLabel(currentCategory)}, frases y asociaciones. <br />
-            Esto solo ocurrirá una vez. Las próximas visitas serán instantáneas.
-          </p>
         </div>
       )}
 
@@ -243,32 +217,18 @@ const App: React.FC = () => {
           initialIndex={initialPlayerIndex}
           darkMode={darkMode}
           category={currentCategory}
-          onExit={handleExitPlayer}
+          onExit={() => { setAppState(AppState.DASHBOARD); setLessonData([]); }}
         />
       )}
-
-      {appState === AppState.ERROR && (
-        <div className="fixed inset-0 bg-black/80 flex flex-col items-center justify-center p-6 text-center z-50">
-          <div className="bg-red-500/10 p-4 rounded-full mb-4">
-            <svg className="w-10 h-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-bold text-white mb-2">Ops, hubo un problema</h2>
-          <p className="text-slate-400 text-sm max-w-xs mb-6">
-            {error}
-          </p>
-          <div className="flex gap-4">
-            <button onClick={() => setAppState(AppState.DASHBOARD)} className="px-6 py-2 rounded-lg bg-slate-700 text-white hover:bg-slate-600 transition">
-              Volver
-            </button>
-            <button onClick={handleRetry} className="px-6 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition">
-              Reintentar
-            </button>
-          </div>
-        </div>
-      )}
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 };
 

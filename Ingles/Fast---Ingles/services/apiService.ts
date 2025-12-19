@@ -1,6 +1,7 @@
-import axios from 'axios';
-import { WordEntry } from '../types';
 
+import axios from 'axios';
+import { WordEntry, User } from '../types';
+import { auth } from '../firebaseConfig';
 
 const API_URL = '/api';
 
@@ -11,44 +12,62 @@ const api = axios.create({
     },
 });
 
-// Add auth token interceptor if needed
-api.interceptors.request.use((config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+// Interceptor to inject Firebase ID Token
+api.interceptors.request.use(async (config) => {
+    if (auth.currentUser) {
+        try {
+            const token = await auth.currentUser.getIdToken();
+            config.headers.Authorization = `Bearer ${token}`;
+        } catch (error) {
+            console.error("Error getting Firebase token:", error);
+        }
     }
     return config;
 });
 
 export const apiService = {
+    // ========== AUTH API METHODS (Firebase Integration) ==========
+
     /**
-     * Generate a preview of the lesson using AI.
-     * Does NOT save to database.
+     * Sync user with backend (JIT Provisioning).
+     * Calls /auth/me to verify token and create user if missing.
      */
+    syncUserWithBackend: async (): Promise<User> => {
+        const response = await api.get('/auth/me');
+        return response.data;
+    },
+
+    /**
+     * Update user profile in backend.
+     */
+    updateUserProfile: async (updates: { displayName?: string, photoURL?: string }): Promise<User> => {
+        // Mapping Firebase fields to Backend User Model fields if necessary
+        // Backend expects { name: ..., photo_url: ... } typically.
+        const payload: any = {};
+        if (updates.displayName) payload.name = updates.displayName;
+        if (updates.photoURL) payload.photo_url = updates.photoURL;
+
+        const response = await api.put('/auth/me', payload); // Assuming /auth/me can handle PUT
+        return response.data;
+    },
+
+    // ========== CONTENT METHODS ==========
+
     previewLesson: async (
         topic: string,
         category: string,
         wordCount: number = 50,
         provider: string = 'gemini'
     ): Promise<WordEntry[]> => {
-        try {
-            const response = await api.post<WordEntry[]>('/lessons/preview', {
-                topic,
-                category,
-                word_count: wordCount,
-                provider
-            });
-            return response.data;
-        } catch (error) {
-            console.error('Error generating preview:', error);
-            throw error;
-        }
+        const response = await api.post<WordEntry[]>('/lessons/preview', {
+            topic,
+            category,
+            word_count: wordCount,
+            provider
+        });
+        return response.data;
     },
 
-    /**
-     * Save the approved lesson content to the database.
-     * Triggers audio generation in background.
-     */
     saveLesson: async (
         dayId: number,
         content: WordEntry[],
@@ -56,47 +75,29 @@ export const apiService = {
         category: string,
         skipBackgroundAudio: boolean = false
     ) => {
-        try {
-            // Append query param to skip background task if requested
-            const url = `/lessons/${dayId}${skipBackgroundAudio ? '?generate_audio=false' : ''}`;
-            const response = await api.put(url, {
-                content,
-                topic,
-                category
-            });
-            return response.data;
-        } catch (error) {
-            console.error(`Error saving lesson ${dayId}:`, error);
-            throw error;
-        }
+        const url = `/lessons/${dayId}${skipBackgroundAudio ? '?generate_audio=false' : ''}`;
+        const response = await api.put(url, {
+            content,
+            topic,
+            category
+        });
+        return response.data;
     },
 
-    /**
-     * Generate audio for a single word synchronously.
-     * Used for frontend-controlled progress bars.
-     */
     generateAudioSingle: async (
         word: string,
         category: string,
         level: number
     ) => {
-        try {
-            const response = await api.post('/lessons/generate-audio-single', {
-                word,
-                category,
-                level,
-                lang: 'en-US'
-            });
-            return response.data; // { status: "generated" | "skipped", key: "..." }
-        } catch (error) {
-            console.error(`Error generating audio for ${word}:`, error);
-            throw error;
-        }
+        const response = await api.post('/lessons/generate-audio-single', {
+            word,
+            category,
+            level,
+            lang: 'en-US'
+        });
+        return response.data;
     },
 
-    /**
-     * Get lesson from database.
-     */
     getLesson: async (dayId: number) => {
         try {
             const response = await api.get(`/lessons/${dayId}`);
@@ -109,10 +110,6 @@ export const apiService = {
         }
     },
 
-    /**
-     * Get a section of the lesson for optimized memory usage.
-     * Section 1: words 1-15, Section 2: words 16-30, Section 3: words 31-end
-     */
     getLessonSection: async (dayId: number, sectionId: number) => {
         try {
             const response = await api.get(`/lessons/${dayId}/section/${sectionId}`);
@@ -125,91 +122,37 @@ export const apiService = {
         }
     },
 
-    /**
-     * Get TTS audio URL from backend.
-     * Returns a presigned URL or direct stream URL.
-     */
     getTTSUrl: async (text: string, lang: string = 'en-US'): Promise<string> => {
         try {
             const response = await api.post('/tts/speak', {
                 text,
                 language: lang,
-                provider: 'browser' // Default to browser for now, can switch to 'gemini'
+                provider: 'browser'
             });
             return response.data.url;
         } catch (error) {
             console.error('Error getting TTS:', error);
-            // Fallback for UI to handle
             return `BROWSER_TTS::${text}::${lang}`;
         }
     },
 
-    // ========== AUTH API METHODS ==========
-
-    /**
-     * Register a new user via backend API.
-     */
-    register: async (name: string, email: string, password: string) => {
-        const response = await api.post('/auth/register', { name, email, password });
-        return response.data;
-    },
-
-    /**
-     * Login and get JWT token.
-     */
-    login: async (email: string, password: string) => {
-        const response = await api.post('/auth/login', { email, password });
-        // Store token in localStorage for session
-        if (response.data.access_token) {
-            localStorage.setItem('token', response.data.access_token);
-        }
-        return response.data;
-    },
-
-    /**
-     * Get current user info from token.
-     */
-    getMe: async () => {
-        const response = await api.get('/auth/me');
-        return response.data;
-    },
-
-    /**
-     * Logout - remove token from localStorage.
-     */
-    logout: () => {
-        localStorage.removeItem('token');
-    },
-
     // ========== ADMIN USER MANAGEMENT API ==========
 
-    /**
-     * Get all users (admin only).
-     */
     adminGetAllUsers: async () => {
         const response = await api.get('/admin/users');
         return response.data;
     },
 
-    /**
-     * Create a new user (admin only).
-     */
-    adminCreateUser: async (userData: { name: string; email: string; password: string; role: string }) => {
+    adminCreateUser: async (userData: any) => {
         const response = await api.post('/admin/users', userData);
         return response.data;
     },
 
-    /**
-     * Update a user (admin only).
-     */
-    adminUpdateUser: async (userId: number, updates: { name?: string; email?: string; password?: string; role?: string; status?: string }) => {
+    adminUpdateUser: async (userId: number, updates: any) => {
         const response = await api.put(`/admin/users/${userId}`, updates);
         return response.data;
     },
 
-    /**
-     * Delete a user (admin only).
-     */
     adminDeleteUser: async (userId: number) => {
         await api.delete(`/admin/users/${userId}`);
         return true;

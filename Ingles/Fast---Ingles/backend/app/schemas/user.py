@@ -1,6 +1,7 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_serializer
 from typing import Optional, Literal
 from datetime import datetime
+from uuid import UUID
 
 
 class UserBase(BaseModel):
@@ -22,11 +23,15 @@ class UserLogin(BaseModel):
 
 class UserResponse(UserBase):
     """Schema for user response."""
-    id: str  # UUID from Supabase
+    id: UUID  # UUID from Supabase
     role: str
     status: str
     photo_url: Optional[str] = None
     created_at: Optional[datetime] = None
+    
+    @field_serializer('id')
+    def serialize_uuid(self, v: UUID) -> str:
+        return str(v)
     
     class Config:
         from_attributes = True
