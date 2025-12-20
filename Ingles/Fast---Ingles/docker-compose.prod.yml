@@ -45,7 +45,7 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS:-["https://ingles.n8nprueba.shop"]}
 
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      test: [ "CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -65,9 +65,12 @@ services:
       - "traefik.http.routers.ingles-api.priority=100"
       - "traefik.http.services.ingles-api.loadbalancer.server.port=8000"
 
-      # CORS Headers
+      # CORS Headers (MUST include Authorization for Firebase tokens)
       - "traefik.http.middlewares.api-cors.headers.accesscontrolalloworiginlist=https://ingles.n8nprueba.shop"
       - "traefik.http.middlewares.api-cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS"
+      - "traefik.http.middlewares.api-cors.headers.accesscontrolallowheaders=Authorization,Content-Type,Accept,Origin,X-Requested-With"
+      - "traefik.http.middlewares.api-cors.headers.accesscontrolallowcredentials=true"
+      - "traefik.http.middlewares.api-cors.headers.accesscontrolmaxage=86400"
       - "traefik.http.routers.ingles-api.middlewares=api-cors"
 
   frontend_app:
