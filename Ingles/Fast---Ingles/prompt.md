@@ -230,3 +230,25 @@ Se ha fortalecido la infraestructura del backend migrando a almacenamiento de ob
 4.  **Estabilidad del Backend:**
     - Corrección de errores de importación (`logging`, `typing`) en routers críticos.
     - Aseguramiento de tipos en la gestión de tareas asíncronas de generación de contenido.
+
+## Version 0.0.9
+
+**Sincronización de Usuarios Firebase-Supabase y Resiliencia**
+
+Se ha resuelto un problema crítico de inconsistencia de datos donde los usuarios autenticados exitosamente en Firebase no lograban sincronizarse con la base de datos relacional (Supabase), bloqueando el acceso a la aplicación.
+
+**Mejoras Críticas:**
+1.  **Sincronización Resiliente (Retry Logic):**
+    - Implementación de un mecanismo de reintento con *exponential backoff* en el cliente (`AuthContext.tsx`).
+    - El sistema ahora realiza hasta 3 intentos de sincronización progresivos (esperas de 1s, 2s, 4s) antes de fallar, mitigando errores transitorios de red o latencia en la propagación de claims del token.
+    - Esta lógica se aplica tanto al inicio de sesión automático (`onAuthStateChanged`) como al flujo explícito de Google Sign-In.
+
+2.  **JIT Provisioning Reforzado (Backend):**
+    - Instrumentación completa con logs detallados en el endpoint de sincronización (`/api/auth/me`) para trazabilidad del proceso "Just-In-Time Provisioning".
+    - Mejor diferenciación y manejo de errores entre fallos de validación de token y excepciones de base de datos.
+
+3.  **UX en Fallos de Conexión:**
+    - Rediseño de la pantalla de "Error de Sincronización".
+    - Eliminación del "callejón sin salida"; ahora se ofrecen acciones claras de recuperación:
+        - **Reintentar:** Para fallos de conectividad momentáneos.
+        - **Cerrar Sesión:** Permite al usuario limpiar un estado local corrupto y volver a autenticarse limpiamente.

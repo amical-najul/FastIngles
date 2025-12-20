@@ -139,8 +139,25 @@ const AppContent: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6 text-center">
         <div>
           <h2 className="text-xl font-bold text-red-600 mb-2">Error de Sincronización</h2>
-          <p className="text-slate-500 mb-6">No pudimos conectar con tu perfil. Intenta recargar.</p>
-          <button onClick={() => window.location.reload()} className="px-6 py-2 bg-slate-200 rounded-lg">Recargar</button>
+          <p className="text-slate-500 mb-4">No pudimos conectar con tu perfil.</p>
+          <p className="text-slate-400 text-sm mb-6">Revisa tu conexión a internet e intenta de nuevo.</p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-6 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors"
+            >
+              Reintentar
+            </button>
+            <button
+              onClick={async () => {
+                await logout();
+                window.location.reload();
+              }}
+              className="px-6 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors"
+            >
+              Cerrar Sesión
+            </button>
+          </div>
         </div>
       </div>
     );

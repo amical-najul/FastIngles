@@ -47,27 +47,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (currentUser) {
                 // Determine if we should allow access based on email verification
                 if (currentUser.emailVerified) {
-                    try {
-                        const token = await currentUser.getIdToken();
-                        // JIT Provisioning / Sync with Backend
-                        const backendUser = await authService.syncUser(token);
-                        setDbUser(backendUser);
+                    // Retry logic with exponential backoff for backend sync
+                    let attempts = 0;
+                    const maxAttempts = 3;
+                    let syncSuccess = false;
+
+                    while (attempts < maxAttempts && !syncSuccess) {
+                        try {
+                            console.log(`[Auth] Sync attempt ${attempts + 1}/${maxAttempts} for ${currentUser.email}`);
+                            const token = await currentUser.getIdToken(true); // Force refresh token
+                            console.log(`[Auth] Got Firebase token, calling backend sync...`);
+
+                            // JIT Provisioning / Sync with Backend
+                            const backendUser = await authService.syncUser(token);
+                            console.log(`[Auth] Backend sync successful:`, backendUser);
+
+                            setDbUser(backendUser);
+                            setUser(currentUser);
+                            syncSuccess = true;
+                        } catch (error: any) {
+                            attempts++;
+                            console.error(`[Auth] Sync attempt ${attempts} failed:`, {
+                                message: error?.message,
+                                status: error?.response?.status,
+                                data: error?.response?.data
+                            });
+
+                            if (attempts < maxAttempts) {
+                                // Exponential backoff: 1s, 2s, 4s
+                                const delay = 1000 * Math.pow(2, attempts - 1);
+                                console.log(`[Auth] Retrying in ${delay}ms...`);
+                                await new Promise(r => setTimeout(r, delay));
+                            }
+                        }
+                    }
+
+                    if (!syncSuccess) {
+                        console.error(`[Auth] All ${maxAttempts} sync attempts failed for ${currentUser.email}`);
+                        // Set user so we can show the error screen with user context
                         setUser(currentUser);
-                    } catch (error) {
-                        console.error("Error syncing user with backend:", error);
-                        // If sync fails, what do we do? Logout? Or allow limited access?
-                        // For now, allow auth but dbUser might be null (or handle error)
-                        setUser(currentUser);
+                        setDbUser(null);
                     }
                 } else {
                     // User is authenticated but NOT verified. 
                     // We still set them as user to show the "Verify Email" screen,
                     // but the ProtectedRoute will block them from main content.
+                    console.log(`[Auth] User ${currentUser.email} not verified yet`);
                     setUser(currentUser);
                     setDbUser(null);
                 }
             } else {
                 // Logged out
+                console.log(`[Auth] User logged out`);
                 setUser(null);
                 setDbUser(null);
                 // Clear any local storage if missed
@@ -99,12 +130,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const googleLogin = async () => {
+        console.log('[Auth] Starting Google login...');
         const result = await signInWithPopup(auth, googleProvider);
+        console.log(`[Auth] Google login successful for ${result.user.email}`);
+
         // Google users are usually verified, but we check:
         if (result.user.emailVerified) {
-            const token = await result.user.getIdToken();
-            const backendUser = await authService.syncUser(token);
-            setDbUser(backendUser);
+            // Retry sync with exponential backoff
+            let attempts = 0;
+            const maxAttempts = 3;
+            let syncSuccess = false;
+
+            while (attempts < maxAttempts && !syncSuccess) {
+                try {
+                    console.log(`[Auth] Google sync attempt ${attempts + 1}/${maxAttempts}`);
+                    const token = await result.user.getIdToken(true);
+                    const backendUser = await authService.syncUser(token);
+                    console.log('[Auth] Google sync successful:', backendUser);
+                    setDbUser(backendUser);
+                    syncSuccess = true;
+                } catch (error: any) {
+                    attempts++;
+                    console.error(`[Auth] Google sync attempt ${attempts} failed:`, error?.response?.data || error?.message);
+                    if (attempts < maxAttempts) {
+                        await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempts - 1)));
+                    }
+                }
+            }
+
+            if (!syncSuccess) {
+                console.error('[Auth] Google sync failed after all attempts');
+                // The onAuthStateChanged will pick this up and handle it
+            }
         }
     };
 
