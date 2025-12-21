@@ -4,9 +4,10 @@ import { useAuth } from '../../contexts/AuthContext';
 
 interface RegisterScreenProps {
     onSwitchToLogin: () => void;
+    onRegistrationSuccess?: () => void;
 }
 
-export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onSwitchToLogin }) => {
+export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onSwitchToLogin, onRegistrationSuccess }) => {
     const { register } = useAuth();
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -22,6 +23,8 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onSwitchToLogin 
         try {
             await register(name, email, password);
             setSuccess(true);
+            // Notify parent that registration succeeded (for App.tsx state)
+            onRegistrationSuccess?.();
         } catch (err: any) {
             setError(err.message || 'Error al registrarse.');
         } finally {

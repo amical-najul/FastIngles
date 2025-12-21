@@ -33,6 +33,7 @@ const AppContent: React.FC = () => {
 
   // Auth View State
   const [authView, setAuthView] = useState<'login' | 'register' | 'forgot'>('login');
+  const [justRegistered, setJustRegistered] = useState(false); // Track fresh registration
 
   // App State
   const [appState, setAppState] = useState<AppState>(AppState.DASHBOARD);
@@ -120,12 +121,47 @@ const AppContent: React.FC = () => {
 
   // 1. Not Authenticated -> Show Auth Screens
   if (!user) {
-    if (authView === 'register') return <RegisterScreen onSwitchToLogin={() => setAuthView('login')} />;
+    if (authView === 'register') {
+      return (
+        <RegisterScreen
+          onSwitchToLogin={() => setAuthView('login')}
+          onRegistrationSuccess={() => setJustRegistered(true)}
+        />
+      );
+    }
     if (authView === 'forgot') return <ForgotPasswordScreen onBack={() => setAuthView('login')} />;
     return <LoginScreen onSwitchToRegister={() => setAuthView('register')} onForgotPassword={() => setAuthView('forgot')} />;
   }
 
-  // 2. Authenticated but Email NOT Verified -> Show Verify Screen
+  // 2. Just Registered -> Show Success Screen (before VerifyEmailScreen)
+  if (justRegistered && !user.emailVerified) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
+          <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">¡Cuenta Creada!</h2>
+          <p className="text-slate-500 mb-6">
+            Hemos enviado un correo de verificación a <strong>{user.email}</strong>. Por favor, revísalo para activar tu cuenta.
+          </p>
+          <button
+            onClick={() => {
+              setJustRegistered(false);
+              setAuthView('login');
+            }}
+            className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors"
+          >
+            Volver al Inicio de Sesión
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. Authenticated but Email NOT Verified -> Show Verify Screen
   if (!user.emailVerified) {
     return <VerifyEmailScreen />;
   }
