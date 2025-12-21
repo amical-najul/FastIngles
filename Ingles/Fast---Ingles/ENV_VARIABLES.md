@@ -55,8 +55,22 @@ MINIO_SECURE=false
 
 ⚠️ **NEVER commit .env files to Git**
 ⚠️ **Use strong SECRET_KEY in production**
-⚠️ **Use service_role key for SUPABASE_KEY, not anon key**
-⚠️ **Set DEBUG=False in production**
+⚠️ **DEBUG=False** in production
+
+## Frontend Variables (Build Time)
+
+These variables are required when building the Docker image for the frontend:
+
+```env
+VITE_FIREBASE_API_KEY=<key>
+VITE_FIREBASE_AUTH_DOMAIN=<domain>
+VITE_FIREBASE_PROJECT_ID=<id>
+VITE_FIREBASE_STORAGE_BUCKET=<bucket>
+VITE_FIREBASE_MESSAGING_SENDER_ID=<id>
+VITE_FIREBASE_APP_ID=<id>
+```
+
+**Note:** For Docker deployments, these must be passed as `args` or environment variables to the build context. The `docker-compose.prod.yml` is configured to read these from your `.env` file or Portainer environment.
 
 ## Getting Supab ase Keys
 

@@ -28,3 +28,4 @@ dist-ssr
 .env.*
 backend/.env
 backend/.env.*
+!.env.example
