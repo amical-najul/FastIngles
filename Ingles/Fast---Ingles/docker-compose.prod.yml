@@ -29,7 +29,7 @@ services:
 
       # --- AI Provider ---
       - DEFAULT_AI_PROVIDER=gemini
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-AIzaSyCUhRHO6TsHlpYxzDHanPDzF4T1Me-ooeY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
 
       # --- MinIO (Storage) ---
       - MINIO_ENDPOINT=files.n8nprueba.shop
