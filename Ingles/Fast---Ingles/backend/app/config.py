@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     MINIO_SECURE: bool = False
     
     # CORS
-    CORS_ORIGINS: list[str] = ["http://localhost", "http://localhost:80", "http://localhost:5173", "http://localhost:3000", "http://127.0.0.1"]
+    CORS_ORIGINS: list[str] = ["http://localhost", "http://localhost:80", "http://localhost:5173", "http://localhost:3000", "http://127.0.0.1", "https://ingles.n8nprueba.shop"]
     
     class Config:
         env_file = ".env"
