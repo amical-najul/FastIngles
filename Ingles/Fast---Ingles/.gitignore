@@ -29,3 +29,4 @@ dist-ssr
 backend/.env
 backend/.env.*
 !.env.example
+ENV_VARIABLES.md
