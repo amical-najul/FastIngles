@@ -125,8 +125,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await updateFirebaseProfile(result.user, { displayName: name });
         await sendEmailVerification(result.user);
         // Do NOT sync with backend yet. Wait for verification.
-        // Sign out to enforce flow? "Si el usuario se registra -> NO iniciar sesión automáticamente."
-        await signOut(auth);
+        // REMOVED: await signOut(auth); - This was causing UI to flicker back to login/register because user became null.
+        // We keep user logged in but unverified, so App.tsx shows the "Success/Verify" screen.
     };
 
     const googleLogin = async () => {
